@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prueba de Subida de Archivos</title>
+</head>
+<body>
+    <h1>Prueba de Subida de Archivos a Cloudinary</h1>
+    
+    <form id="uploadForm" enctype="multipart/form-data">
+        <div>
+            <label for="documento">Documento (texto):</label><br>
+            <input type="text" id="documento" name="documento" value="Documento de prueba" required>
+        </div>
+        <br>
+        <div>
+            <label for="documentos">Seleccionar archivos:</label><br>
+            <input type="file" id="documentos" name="documentos" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
+        </div>
+        <br>
+        <button type="submit">Subir Archivos</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const documento = document.getElementById('documento').value;
+            const files = document.getElementById('documentos').files;
+            
+            // Agregar el texto del documento
+            formData.append('documento', documento);
+            
+            // Agregar los archivos
+            for (let i = 0; i < files.length; i++) {
+                formData.append('documentos', files[i]);
+            }
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/compras', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                document.getElementById('result').innerHTML = `
+                    <h3>Resultado:</h3>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+                
+                if (result.savedDocument && result.savedDocument.documentos) {
+                    result.savedDocument.documentos.forEach((doc, index) => {
+                        document.getElementById('result').innerHTML += `
+                            <div>
+                                <h4>Archivo ${index + 1}: ${doc.originalName}</h4>
+                                <p>URL: <a href="${doc.url}" target="_blank">${doc.url}</a></p>
+                                <p>Formato: ${doc.format}</p>
+                                <p>Tamaño: ${doc.bytes} bytes</p>
+                            </div>
+                        `;
+                    });
+                }
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h3>Error:</h3>
+                    <p style="color: red;">${error.message}</p>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
