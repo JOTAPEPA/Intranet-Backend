@@ -16,6 +16,7 @@ const handleMulterError = (err, req, res, next) => {
 router.post('/', [upload.array('documentos', 10), handleMulterError], httpTesoreria.postTesoreria);
 router.get('/', httpTesoreria.getTesoreria);
 router.get('/:id', httpTesoreria.getTesoreriaById);
+router.get('/:id/file/:fileIndex/download', httpTesoreria.getFileDownloadURL);
 router.delete('/:id', httpTesoreria.deleteTesoreria);
 
 export default router;

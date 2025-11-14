@@ -3,9 +3,10 @@ import dotenv from 'dotenv'
 import express from 'express';
 import cors from 'cors';
 
-
 dotenv.config()
 
+// Importar configuración de Firebase (se inicializa automáticamente)
+import './config/firebase.js';
 
 import httpUser from './routes/user.js';
 import httpCompra from './routes/compras.js';
@@ -16,11 +17,12 @@ import httpGerencia from './routes/gerencia.js';
 import httpRiesgos from './routes/riesgos.js';
 import httpTalentoHumano from './routes/talentoHumano.js';
 import httpTesoreria from './routes/tesoreria.js';
+import httpSistemas from './routes/sistemas.js';
 
 const app = express()
 
 app.use(cors({ 
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'null'], // Permitir frontend en ambos puertos y archivos locales
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'null'], // Permitir frontend en ambos puertos y archivos locales
     credentials: true
 }));
 
@@ -36,6 +38,8 @@ app.use((req, res, next) => {
     next();
 });
 
+// Firebase se inicializa automáticamente al importar la configuración
+
 app.use('/api/user', httpUser);
 app.use('/api/compras', httpCompra);
 app.use('/api/contabilidad', httpContabilidad);
@@ -45,6 +49,7 @@ app.use('/api/gerencia', httpGerencia);
 app.use('/api/riesgos', httpRiesgos);
 app.use('/api/talento-humano', httpTalentoHumano);
 app.use('/api/tesoreria', httpTesoreria);
+app.use('/api/sistemas', httpSistemas);
 
 // Middleware global de manejo de errores
 app.use((err, req, res, next) => {

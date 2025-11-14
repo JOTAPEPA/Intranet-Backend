@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descarga Documentos - Compras</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .refresh-btn {
+            background: #28a745;
+        }
+        
+        .refresh-btn:hover {
+            background: #1e7e34;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+            color: #007bff;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border: 1px solid #f5c6cb;
+            display: none;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border: 1px solid #c3e6cb;
+            display: none;
+        }
+        
+        .documents-container {
+            margin-top: 20px;
+        }
+        
+        .document-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .document-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .document-id {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            color: #495057;
+        }
+        
+        .document-date {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        .document-description {
+            font-size: 16px;
+            font-weight: bold;
+            color: #495057;
+            margin: 10px 0;
+            padding: 10px;
+            background: #e7f3ff;
+            border-left: 4px solid #007bff;
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .files-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .file-card {
+            border: 1px solid #007bff;
+            border-radius: 8px;
+            padding: 15px;
+            background: white;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .file-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,123,255,0.3);
+        }
+        
+        .file-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .file-icon {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+        
+        .file-name {
+            font-weight: bold;
+            color: #007bff;
+            word-break: break-word;
+            flex: 1;
+        }
+        
+        .file-details {
+            font-size: 12px;
+            color: #6c757d;
+            margin: 5px 0;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .download-btn {
+            background: #007bff;
+            color: white;
+            padding: 8px 15px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.2s;
+        }
+        
+        .download-btn:hover {
+            background: #0056b3;
+            text-decoration: none;
+            color: white;
+        }
+        
+        .view-btn {
+            background: #17a2b8;
+            color: white;
+            padding: 8px 15px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .view-btn:hover {
+            background: #138496;
+            text-decoration: none;
+            color: white;
+        }
+        
+        .stats {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #b3d7ff;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            text-align: center;
+        }
+        
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .empty-state img {
+            width: 100px;
+            opacity: 0.5;
+            margin-bottom: 20px;
+        }
+        
+        .config-info {
+            background: #d1ecf1;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .files-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Descarga de Documentos - Compras</h1>
+        
+        <div class="config-info">
+            <strong>📡 Configuración:</strong><br>
+            <strong>Endpoint:</strong> <span id="endpoint-url">http://localhost:5000/api/compras</span><br>
+            <strong>Módulo:</strong> Compras<br>
+            <strong>Funcionalidad:</strong> Visualización y descarga de documentos subidos
+        </div>
+        
+        <div class="controls">
+            <button id="loadBtn" class="refresh-btn">
+                📂 Cargar Documentos
+            </button>
+            <button id="refreshBtn" class="refresh-btn">
+                🔄 Actualizar
+            </button>
+            <button onclick="window.open('test-upload.html', '_blank')">
+                ➕ Subir Nuevos Archivos
+            </button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Cargando documentos de compras...</p>
+        </div>
+        
+        <div class="error" id="error"></div>
+        <div class="success" id="success"></div>
+        
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalDocs">0</div>
+                    <div class="stat-label">Documentos</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="totalFiles">0</div>
+                    <div class="stat-label">Archivos</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="totalSize">0</div>
+                    <div class="stat-label">Tamaño Total</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="lastUpdate">-</div>
+                    <div class="stat-label">Última Actualización</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="documents-container" id="documentsContainer">
+            <div class="empty-state" id="emptyState">
+                <div style="font-size: 48px; margin-bottom: 20px;">📄</div>
+                <h3>No hay documentos disponibles</h3>
+                <p>Haz clic en "Cargar Documentos" para ver los archivos subidos o sube nuevos archivos.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuración
+        const SERVER_URL = 'http://localhost:5000';
+        const MODULE = 'compras';
+        
+        // Referencias del DOM
+        const loadBtn = document.getElementById('loadBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const success = document.getElementById('success');
+        const documentsContainer = document.getElementById('documentsContainer');
+        const emptyState = document.getElementById('emptyState');
+        const stats = document.getElementById('stats');
+        const endpointSpan = document.getElementById('endpoint-url');
+        
+        // Actualizar URL del endpoint
+        endpointSpan.textContent = `${SERVER_URL}/api/${MODULE}`;
+        
+        // Event listeners
+        loadBtn.addEventListener('click', loadDocuments);
+        refreshBtn.addEventListener('click', loadDocuments);
+        
+        // Función principal para cargar documentos
+        async function loadDocuments() {
+            showLoading(true);
+            hideMessages();
+            
+            try {
+                console.log(`📤 Obteniendo documentos de: ${SERVER_URL}/api/${MODULE}`);
+                
+                const response = await fetch(`${SERVER_URL}/api/${MODULE}`);
+                console.log('📡 Status de respuesta:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const documents = await response.json();
+                console.log('📋 Documentos recibidos:', documents.length);
+                
+                displayDocuments(documents);
+                updateStats(documents);
+                showSuccess(`✅ Se cargaron ${documents.length} documento(s) exitosamente`);
+                
+            } catch (err) {
+                console.error('❌ Error cargando documentos:', err);
+                showError(`❌ Error cargando documentos: ${err.message}<br><br>
+                    <strong>Posibles soluciones:</strong><br>
+                    • Verificar que el servidor esté ejecutándose en ${SERVER_URL}<br>
+                    • Revisar la consola del navegador para más detalles<br>
+                    • Intentar refrescar la página`);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Mostrar documentos
+        function displayDocuments(documents) {
+            if (!documents || documents.length === 0) {
+                documentsContainer.innerHTML = emptyState.outerHTML;
+                stats.style.display = 'none';
+                return;
+            }
+            
+            stats.style.display = 'block';
+            documentsContainer.innerHTML = '';
+            
+            documents.forEach((doc, index) => {
+                const documentCard = createDocumentCard(doc, index);
+                documentsContainer.appendChild(documentCard);
+            });
+        }
+        
+        // Crear tarjeta de documento
+        function createDocumentCard(doc, index) {
+            const card = document.createElement('div');
+            card.className = 'document-card';
+            
+            const createdDate = new Date(doc.createdAt).toLocaleString();
+            const updatedDate = new Date(doc.updatedAt).toLocaleString();
+            
+            card.innerHTML = `
+                <div class="document-header">
+                    <div class="document-id">ID: ${doc._id}</div>
+                    <div class="document-date">Creado: ${createdDate}</div>
+                </div>
+                
+                <div class="document-description">
+                    📋 ${doc.documento}
+                </div>
+                
+                <div style="font-size: 12px; color: #6c757d; margin-bottom: 15px;">
+                    <strong>Última actualización:</strong> ${updatedDate}<br>
+                    <strong>Archivos adjuntos:</strong> ${doc.documentos ? doc.documentos.length : 0}
+                </div>
+                
+                <div class="files-grid" id="files-${index}">
+                    ${doc.documentos && doc.documentos.length > 0 
+                        ? doc.documentos.map((file, fileIndex) => createFileCard(file, doc._id, fileIndex)).join('')
+                        : '<div style="text-align: center; color: #6c757d; padding: 20px;">No hay archivos adjuntos</div>'
+                    }
+                </div>
+            `;
+            
+            return card;
+        }
+        
+        // Crear tarjeta de archivo
+        function createFileCard(file, docId, fileIndex) {
+            const uploadDate = new Date(file.uploadDate).toLocaleString();
+            const fileSize = formatFileSize(file.size);
+            const fileIcon = getFileIcon(file.mimetype);
+            
+            return `
+                <div class="file-card">
+                    <div class="file-header">
+                        <div class="file-icon">${fileIcon}</div>
+                        <div class="file-name">${file.originalName}</div>
+                    </div>
+                    
+                    <div class="file-details">
+                        <strong>Nombre en Firebase:</strong> ${file.fileName}<br>
+                        <strong>Tamaño:</strong> ${fileSize}<br>
+                        <strong>Tipo:</strong> ${file.mimetype}<br>
+                        <strong>Fecha:</strong> ${uploadDate}<br>
+                        <strong>Ruta:</strong> ${file.firebaseRef}
+                    </div>
+                    
+                    <div class="file-actions">
+                        <a href="${file.downloadURL}" target="_blank" class="download-btn">
+                            ⬇️ Descargar Directo
+                        </a>
+                        <a href="${SERVER_URL}/api/${MODULE}/${docId}/file/${fileIndex}/download" target="_blank" class="view-btn">
+                            👁️ Abrir Archivo
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Actualizar estadísticas
+        function updateStats(documents) {
+            let totalFiles = 0;
+            let totalSize = 0;
+            let lastUpdate = new Date(0);
+            
+            documents.forEach(doc => {
+                if (doc.documentos) {
+                    totalFiles += doc.documentos.length;
+                    doc.documentos.forEach(file => {
+                        totalSize += file.size || 0;
+                    });
+                }
+                
+                const docUpdate = new Date(doc.updatedAt);
+                if (docUpdate > lastUpdate) {
+                    lastUpdate = docUpdate;
+                }
+            });
+            
+            document.getElementById('totalDocs').textContent = documents.length;
+            document.getElementById('totalFiles').textContent = totalFiles;
+            document.getElementById('totalSize').textContent = formatFileSize(totalSize);
+            document.getElementById('lastUpdate').textContent = lastUpdate.getTime() > 0 
+                ? lastUpdate.toLocaleDateString() 
+                : '-';
+        }
+        
+        // Obtener icono de archivo
+        function getFileIcon(mimetype) {
+            if (mimetype.includes('pdf')) return '📄';
+            if (mimetype.includes('word')) return '📝';
+            if (mimetype.includes('excel') || mimetype.includes('spreadsheet')) return '📊';
+            if (mimetype.includes('image')) return '🖼️';
+            if (mimetype.includes('text')) return '📃';
+            return '📎';
+        }
+        
+        // Formatear tamaño de archivo
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Funciones de UI
+        function showLoading(show) {
+            loading.style.display = show ? 'block' : 'none';
+            loadBtn.disabled = show;
+            refreshBtn.disabled = show;
+        }
+        
+        function showError(message) {
+            error.innerHTML = message;
+            error.style.display = 'block';
+            setTimeout(() => {
+                error.style.display = 'none';
+            }, 10000);
+        }
+        
+        function showSuccess(message) {
+            success.innerHTML = message;
+            success.style.display = 'block';
+            setTimeout(() => {
+                success.style.display = 'none';
+            }, 5000);
+        }
+        
+        function hideMessages() {
+            error.style.display = 'none';
+            success.style.display = 'none';
+        }
+        
+        // Log inicial
+        console.log('📋 Visualizador de documentos de Compras inicializado');
+        console.log('📡 Servidor configurado en:', SERVER_URL);
+        console.log('🎯 Endpoint:', `${SERVER_URL}/api/${MODULE}`);
+        
+        // Cargar documentos automáticamente al cargar la página
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Cargando documentos automáticamente...');
+            loadDocuments();
+        });
+    </script>
+</body>
+</html>

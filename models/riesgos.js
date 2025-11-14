@@ -4,29 +4,37 @@ const riesgosSchema = new mongoose.Schema({
     
     documento: {type: String, required: true},
     documentos: [{
-        url: {
-            type: String,
-            required: true
-        },
-        public_id: {
-            type: String,
-            required: true
-        },
         originalName: {
             type: String,
             required: true
         },
-        format: {
+        fileName: {
             type: String,
             required: true
         },
-        bytes: {
+        filePath: {
+            type: String,
+            required: true
+        },
+        downloadURL: {
+            type: String,
+            required: true
+        },
+        mimetype: {
+            type: String,
+            required: true
+        },
+        size: {
             type: Number,
             required: true
         },
         uploadDate: {
             type: Date,
             default: Date.now
+        },
+        firebaseRef: {
+            type: String,
+            required: true
         }
     }],
     

@@ -1,5 +1,5 @@
 import TalentoHumano from '../models/talentoHumano.js';
-import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinaryUtils.js';
+import { uploadMultipleFilesWithOriginalNames, deleteFile } from '../services/firebaseStorage.js';
 
 const httpTalentoHumano = {
 
@@ -11,41 +11,50 @@ const httpTalentoHumano = {
             const talentoHumanoData = { documento, documentos: [] };
 
             if (req.files && req.files.length > 0) {
-                console.log(`Procesando ${req.files.length} archivo(s)...`);
-                
-                for (const file of req.files) {
-                    try {
-                        const uploadResult = await uploadToCloudinary(file.buffer, 'talento-humano', 'auto');
-                        talentoHumanoData.documentos.push({
-                            url: uploadResult.url,
-                            public_id: uploadResult.public_id,
-                            originalName: file.originalname,
-                            format: uploadResult.format,
-                            bytes: uploadResult.bytes
-                        });
-                        console.log(`Archivo ${file.originalname} subido exitosamente`);
-                    } catch (uploadError) {
-                        console.error(`Error subiendo archivo ${file.originalname}:`, uploadError);
-                        return res.status(500).json({ 
-                            message: `Error subiendo archivo ${file.originalname}`,
-                            error: uploadError.message 
-                        });
-                    }
+                console.log(`📁 Procesando ${req.files.length} archivo(s) para Firebase Storage...`);
+
+                try {
+                    // Subir archivos a Firebase Storage con nombres originales
+                    const uploadResults = await uploadMultipleFilesWithOriginalNames(req.files, 'talento-humano');
+                    console.log('✅ Archivos subidos a Firebase Storage:', uploadResults.length);
+
+                    // Agregar información de Firebase al array de documentos
+                    talentoHumanoData.documentos = uploadResults.map(result => ({
+                        originalName: result.originalName,
+                        fileName: result.fileName,
+                        filePath: result.filePath,
+                        downloadURL: result.downloadURL,
+                        mimetype: result.mimetype,
+                        size: result.size,
+                        firebaseRef: result.firebaseRef,
+                        uploadDate: new Date()
+                    }));
+
+                    console.log('📋 Documentos procesados para BD:', talentoHumanoData.documentos.length);
+
+                } catch (uploadError) {
+                    console.error('❌ Error subiendo archivos a Firebase:', uploadError);
+                    return res.status(500).json({ 
+                        message: "Error uploading files to Firebase Storage", 
+                        error: uploadError.message 
+                    });
                 }
             }
 
             const newDocument = new TalentoHumano(talentoHumanoData);
             const savedDocument = await newDocument.save();
+
+            console.log('✅ Documento de talento humano guardado en BD con ID:', savedDocument._id);
             
             res.status(201).json({ 
-                message: "Talento Humano created successfully", 
-                savedDocument,
+                message: "Documento de talento humano creado exitosamente con Firebase Storage", 
+                talentoHumano: savedDocument,
                 filesUploaded: talentoHumanoData.documentos.length
             });
 
         } catch (error) {
-            console.error("Error creating talento humano:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
+            console.error("❌ Error creando documento de talento humano:", error);
+            res.status(500).json({ message: "Error interno del servidor", error: error.message });
         }
     },
 
@@ -75,23 +84,61 @@ const httpTalentoHumano = {
         try {
             const { id } = req.params;
             const talentoHumano = await TalentoHumano.findById(id);
-            if (!talentoHumano) return res.status(404).json({ message: "Talento Humano not found" });
+            if (!talentoHumano) return res.status(404).json({ message: "Documento de talento humano no encontrado" });
 
+            // Eliminar archivos de Firebase Storage
             if (talentoHumano.documentos && talentoHumano.documentos.length > 0) {
+                console.log(`🗑️ Eliminando ${talentoHumano.documentos.length} archivos de Firebase Storage...`);
+                
                 for (const documento of talentoHumano.documentos) {
                     try {
-                        await deleteFromCloudinary(documento.public_id, 'auto');
+                        if (documento.firebaseRef) {
+                            await deleteFile(documento.firebaseRef);
+                            console.log(`✅ Archivo eliminado de Firebase: ${documento.firebaseRef}`);
+                        }
                     } catch (deleteError) {
-                        console.error(`Error eliminando archivo ${documento.originalName}:`, deleteError);
+                        console.error(`❌ Error eliminando archivo ${documento.firebaseRef}:`, deleteError.message);
+                        // Continuar con otros archivos aunque uno falle
                     }
                 }
             }
 
             await TalentoHumano.findByIdAndDelete(id);
-            res.status(200).json({ message: "Talento Humano deleted successfully" });
+            console.log('✅ Documento de talento humano eliminado de BD:', id);
+            
+            res.status(200).json({ message: "Documento de talento humano eliminado exitosamente" });
         } catch (error) {
-            console.error("Error deleting talento humano:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
+            console.error("❌ Error eliminando documento de talento humano:", error);
+            res.status(500).json({ message: "Error interno del servidor", error: error.message });
+        }
+    },
+
+    getFileDownloadURL: async (req, res) => {
+        try {
+            const { id, fileIndex } = req.params;
+            
+            const talentoHumano = await TalentoHumano.findById(id);
+            if (!talentoHumano) {
+                return res.status(404).json({ message: "Documento de talento humano no encontrado" });
+            }
+
+            const fileIdx = parseInt(fileIndex);
+            if (fileIdx < 0 || fileIdx >= talentoHumano.documentos.length) {
+                return res.status(404).json({ message: "Archivo no encontrado" });
+            }
+
+            const documento = talentoHumano.documentos[fileIdx];
+            
+            if (!documento.downloadURL) {
+                return res.status(404).json({ message: "URL de descarga no disponible" });
+            }
+
+            // Redirigir a la URL de descarga de Firebase
+            res.redirect(documento.downloadURL);
+            
+        } catch (error) {
+            console.error("❌ Error obteniendo URL de descarga:", error);
+            res.status(500).json({ message: "Error interno del servidor", error: error.message });
         }
     }
 }

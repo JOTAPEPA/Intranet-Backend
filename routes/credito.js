@@ -18,4 +18,7 @@ router.get('/', httpCredito.getCredito);
 router.get('/:id', httpCredito.getCreditoById);
 router.delete('/:id', httpCredito.deleteCredito);
 
+// Nueva ruta para obtener URL de descarga de un archivo específico
+router.get('/:id/file/:fileIndex/download', httpCredito.getFileDownloadURL);
+
 export default router;

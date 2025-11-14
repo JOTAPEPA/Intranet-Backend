@@ -1,0 +1,520 @@
+# API DOCUMENTATION - Firebase Storage Integration
+# Backend para Sistema de Intranet - Subida de Archivos
+
+## INFORMACIÓN GENERAL DEL BACKEND
+
+### URL Base del Servidor
+- Desarrollo: http://localhost:5000
+- Producción: [CONFIGURAR_URL_PRODUCCION]
+
+### Base Path para API
+- Todos los endpoints: /api/[modulo]
+
+### Tecnologías Backend
+- Node.js + Express
+- MongoDB + Mongoose
+- Firebase Storage
+- Multer para manejo de archivos
+
+## MÓDULOS DISPONIBLES
+
+### 8 Módulos Completamente Implementados:
+1. compras
+2. contabilidad  
+3. control-interno
+4. credito
+5. gerencia
+6. riesgos
+7. talento-humano
+8. tesoreria
+
+## ENDPOINTS DISPONIBLES POR MÓDULO
+
+### Para cada módulo [NOMBRE_MODULO]:
+
+#### 1. SUBIR ARCHIVOS (POST)
+- **URL:** /api/[NOMBRE_MODULO]
+- **Método:** POST
+- **Content-Type:** multipart/form-data
+- **Campos requeridos:**
+  - `documento`: string (descripción del documento)
+  - `documentos`: file[] (archivos, máximo 10)
+
+#### 2. OBTENER TODOS (GET)
+- **URL:** /api/[NOMBRE_MODULO]
+- **Método:** GET
+
+#### 3. OBTENER POR ID (GET)
+- **URL:** /api/[NOMBRE_MODULO]/:id
+- **Método:** GET
+
+#### 4. DESCARGAR ARCHIVO (GET)
+- **URL:** /api/[NOMBRE_MODULO]/:id/file/:fileIndex/download
+- **Método:** GET
+- **Descripción:** Redirige a la URL de descarga de Firebase
+
+#### 5. ELIMINAR DOCUMENTO (DELETE)
+- **URL:** /api/[NOMBRE_MODULO]/:id
+- **Método:** DELETE
+
+## EJEMPLOS ESPECÍFICOS DE ENDPOINTS
+
+### Contabilidad:
+- POST: http://localhost:5000/api/contabilidad
+- GET: http://localhost:5000/api/contabilidad
+- GET por ID: http://localhost:5000/api/contabilidad/[id]
+- Descarga: http://localhost:5000/api/contabilidad/[id]/file/[fileIndex]/download
+- DELETE: http://localhost:5000/api/contabilidad/[id]
+
+### Control Interno:
+- POST: http://localhost:5000/api/control-interno
+- GET: http://localhost:5000/api/control-interno
+- GET por ID: http://localhost:5000/api/control-interno/[id]
+- Descarga: http://localhost:5000/api/control-interno/[id]/file/[fileIndex]/download
+- DELETE: http://localhost:5000/api/control-interno/[id]
+
+### [Seguir el mismo patrón para todos los módulos]
+
+## ESTRUCTURA DE DATOS
+
+### Petición POST (FormData):
+```javascript
+const formData = new FormData();
+formData.append('documento', 'Descripción del documento');
+formData.append('documentos', file1);
+formData.append('documentos', file2);
+// ... hasta 10 archivos máximo
+```
+
+### Respuesta Exitosa POST:
+```json
+{
+  "message": "Documento de [modulo] creado exitosamente con Firebase Storage",
+  "[modulo]": {
+    "_id": "documento_id",
+    "documento": "Descripción del documento",
+    "documentos": [
+      {
+        "originalName": "archivo_original.pdf",
+        "fileName": "archivo_original.pdf",
+        "filePath": "[modulo]/archivo_original.pdf",
+        "downloadURL": "https://firebasestorage.googleapis.com/...",
+        "mimetype": "application/pdf",
+        "size": 1234567,
+        "uploadDate": "2025-10-23T...",
+        "firebaseRef": "[modulo]/archivo_original.pdf",
+        "_id": "file_id"
+      }
+    ],
+    "createdAt": "2025-10-23T...",
+    "updatedAt": "2025-10-23T..."
+  },
+  "filesUploaded": 1
+}
+```
+
+### Respuesta GET (obtener todos):
+```json
+[
+  {
+    "_id": "documento_id",
+    "documento": "Descripción del documento",
+    "documentos": [...],
+    "createdAt": "2025-10-23T...",
+    "updatedAt": "2025-10-23T..."
+  }
+]
+```
+
+### Respuesta GET por ID:
+```json
+{
+  "[modulo]": {
+    "_id": "documento_id",
+    "documento": "Descripción del documento",
+    "documentos": [...],
+    "createdAt": "2025-10-23T...",
+    "updatedAt": "2025-10-23T..."
+  }
+}
+```
+
+## TIPOS DE ARCHIVOS PERMITIDOS
+
+### Extensiones Permitidas:
+- PDF: .pdf
+- Word: .doc, .docx
+- Excel: .xls, .xlsx
+- Texto: .txt, .csv
+- Imágenes: .jpg, .jpeg, .png, .gif, .webp
+
+### MIME Types Permitidos:
+- application/pdf
+- application/msword
+- application/vnd.openxmlformats-officedocument.wordprocessingml.document
+- application/vnd.ms-excel
+- application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+- text/plain
+- text/csv
+- image/jpeg
+- image/jpg
+- image/png
+- image/gif
+- image/webp
+
+### Límites:
+- Máximo 10 archivos por petición
+- Tamaño máximo por archivo: [CONFIGURADO_EN_MULTER]
+
+## MANEJO DE ERRORES
+
+### Errores Comunes:
+```json
+{
+  "message": "Descripción del error",
+  "error": "Detalle técnico del error"
+}
+```
+
+### Códigos de Estado:
+- 200: Operación exitosa (GET, DELETE)
+- 201: Recurso creado exitosamente (POST)
+- 400: Error de validación o parámetros
+- 404: Recurso no encontrado
+- 500: Error interno del servidor
+
+### Errores Específicos de Archivos:
+- "El archivo es demasiado grande" (LIMIT_FILE_SIZE)
+- "Demasiados archivos" (LIMIT_FILE_COUNT)
+- "Tipo de archivo no permitido"
+- "Error uploading files to Firebase Storage"
+
+## CARACTERÍSTICAS ESPECIALES
+
+### Nombres de Archivos:
+- ✅ **SE CONSERVAN LOS NOMBRES ORIGINALES**
+- Los archivos se guardan en Firebase con el mismo nombre que se subió
+- Organizados en carpetas por módulo
+
+### Estructura en Firebase Storage:
+```
+Firebase Storage (intranet-copvilla)
+├── compras/
+│   ├── factura_compra_enero.pdf
+│   └── orden_compra_123.xlsx
+├── contabilidad/
+│   ├── balance_general_2025.pdf
+│   └── libro_diario.xlsx
+├── control-interno/
+├── credito/
+├── gerencia/
+├── riesgos/
+├── talento-humano/
+└── tesoreria/
+```
+
+### Funcionalidad de Descarga:
+- Cada archivo tiene una `downloadURL` directa de Firebase
+- Endpoint de descarga que redirige a Firebase
+- Archivos accesibles públicamente con URL firmada
+
+## EJEMPLOS DE CÓDIGO FRONTEND
+
+### JavaScript Vanilla - Subida de Archivos:
+```javascript
+async function subirArchivos(modulo, descripcion, archivos) {
+  const formData = new FormData();
+  formData.append('documento', descripcion);
+  
+  Array.from(archivos).forEach(archivo => {
+    formData.append('documentos', archivo);
+  });
+  
+  try {
+    const response = await fetch(`http://localhost:5000/api/${modulo}`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Archivos subidos:', data);
+    return data;
+  } catch (error) {
+    console.error('Error subiendo archivos:', error);
+    throw error;
+  }
+}
+```
+
+### React - Hook para Subida:
+```javascript
+import { useState } from 'react';
+
+const useFileUpload = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  
+  const uploadFiles = async (modulo, descripcion, archivos) => {
+    setLoading(true);
+    setError(null);
+    
+    const formData = new FormData();
+    formData.append('documento', descripcion);
+    
+    Array.from(archivos).forEach(archivo => {
+      formData.append('documentos', archivo);
+    });
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/${modulo}`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setLoading(false);
+      return data;
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+      throw err;
+    }
+  };
+  
+  return { uploadFiles, loading, error };
+};
+```
+
+### Axios - Subida con Progress:
+```javascript
+import axios from 'axios';
+
+const subirArchivosConProgreso = async (modulo, descripcion, archivos, onProgress) => {
+  const formData = new FormData();
+  formData.append('documento', descripcion);
+  
+  Array.from(archivos).forEach(archivo => {
+    formData.append('documentos', archivo);
+  });
+  
+  try {
+    const response = await axios.post(
+      `http://localhost:5000/api/${modulo}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percentCompleted);
+        },
+      }
+    );
+    
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error.message;
+  }
+};
+```
+
+## VALIDACIONES RECOMENDADAS EN FRONTEND
+
+### Antes de Enviar:
+```javascript
+function validarArchivos(archivos) {
+  const tiposPermitidos = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain',
+    'text/csv',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp'
+  ];
+  
+  const maxArchivos = 10;
+  const maxTamano = 10 * 1024 * 1024; // 10MB por archivo
+  
+  if (archivos.length > maxArchivos) {
+    throw new Error(`Máximo ${maxArchivos} archivos permitidos`);
+  }
+  
+  for (let archivo of archivos) {
+    if (!tiposPermitidos.includes(archivo.type)) {
+      throw new Error(`Tipo de archivo no permitido: ${archivo.name}`);
+    }
+    
+    if (archivo.size > maxTamano) {
+      throw new Error(`Archivo muy grande: ${archivo.name}`);
+    }
+  }
+  
+  return true;
+}
+```
+
+## COMPONENTE EJEMPLO REACT
+
+```jsx
+import React, { useState } from 'react';
+
+const FileUploader = ({ modulo = 'contabilidad' }) => {
+  const [archivos, setArchivos] = useState([]);
+  const [descripcion, setDescripcion] = useState('');
+  const [subiendo, setSubiendo] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  
+  const manejarArchivos = (e) => {
+    setArchivos(Array.from(e.target.files));
+  };
+  
+  const subirArchivos = async (e) => {
+    e.preventDefault();
+    
+    if (archivos.length === 0) {
+      alert('Selecciona al menos un archivo');
+      return;
+    }
+    
+    setSubiendo(true);
+    
+    const formData = new FormData();
+    formData.append('documento', descripcion);
+    archivos.forEach(archivo => {
+      formData.append('documentos', archivo);
+    });
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/${modulo}`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setResultado(data);
+      setArchivos([]);
+      setDescripcion('');
+    } catch (error) {
+      alert(`Error: ${error.message}`);
+    } finally {
+      setSubiendo(false);
+    }
+  };
+  
+  return (
+    <div>
+      <h2>Subir Archivos - {modulo}</h2>
+      <form onSubmit={subirArchivos}>
+        <div>
+          <label>Descripción:</label>
+          <textarea
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            required
+          />
+        </div>
+        
+        <div>
+          <label>Archivos (máximo 10):</label>
+          <input
+            type="file"
+            multiple
+            onChange={manejarArchivos}
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.gif,.webp"
+          />
+        </div>
+        
+        <button type="submit" disabled={subiendo}>
+          {subiendo ? 'Subiendo...' : 'Subir Archivos'}
+        </button>
+      </form>
+      
+      {resultado && (
+        <div>
+          <h3>Archivos Subidos:</h3>
+          {resultado[modulo].documentos.map((doc, index) => (
+            <div key={index}>
+              <strong>{doc.originalName}</strong>
+              <a href={doc.downloadURL} target="_blank" rel="noopener noreferrer">
+                Descargar
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default FileUploader;
+```
+
+## NOTAS IMPORTANTES
+
+### Para el Desarrollador Frontend:
+1. **Nombres Originales:** Los archivos mantienen sus nombres originales
+2. **Firebase URLs:** Cada archivo tiene una URL de descarga directa
+3. **Organización:** Los archivos se organizan por módulo en Firebase
+4. **Validación:** Implementar validaciones del lado cliente para mejor UX
+5. **Progress:** Considerar mostrar progreso de subida para archivos grandes
+6. **Error Handling:** Manejar todos los posibles errores de la API
+
+### Configuraciones de CORS:
+- El backend debería estar configurado para permitir requests desde tu frontend
+- Si tienes problemas de CORS, verifica la configuración del servidor
+
+### Seguridad:
+- Las URLs de Firebase son firmadas y tienen tiempo de expiración
+- Los archivos son públicos una vez subidos (considerar esto en la implementación)
+
+## TESTING
+
+### URLs de Prueba (archivos HTML incluidos):
+- test-contabilidad-nombres-originales.html
+- test-control-interno.html
+- test-credito.html
+- test-gerencia.html
+- test-riesgos.html
+- test-talento-humano.html
+- test-tesoreria.html
+
+Estos archivos HTML pueden servir como referencia para ver cómo interactuar con la API.
+
+---
+
+## RESUMEN RÁPIDO PARA COPILOT
+
+**Backend Endpoints:**
+- POST /api/[modulo] - Subir archivos
+- GET /api/[modulo] - Obtener todos
+- GET /api/[modulo]/:id - Obtener por ID
+- GET /api/[modulo]/:id/file/:fileIndex/download - Descargar archivo
+- DELETE /api/[modulo]/:id - Eliminar
+
+**Módulos:** compras, contabilidad, control-interno, credito, gerencia, riesgos, talento-humano, tesoreria
+
+**Datos POST:** FormData con 'documento' (string) y 'documentos' (files, max 10)
+
+**Archivos:** Se guardan con nombres originales en Firebase Storage organizados por módulo
+
+**Response:** JSON con información completa del documento y URLs de descarga directa

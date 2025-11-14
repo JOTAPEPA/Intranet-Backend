@@ -16,6 +16,7 @@ const handleMulterError = (err, req, res, next) => {
 router.post('/', [upload.array('documentos', 10), handleMulterError], httpRiesgos.postRiesgos);
 router.get('/', httpRiesgos.getRiesgos);
 router.get('/:id', httpRiesgos.getRiesgosById);
+router.get('/:id/file/:fileIndex/download', httpRiesgos.getFileDownloadURL);
 router.delete('/:id', httpRiesgos.deleteRiesgos);
 
 export default router;

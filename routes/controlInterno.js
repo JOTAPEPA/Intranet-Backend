@@ -23,4 +23,7 @@ router.get('/', httpControlInterno.getControlInterno);
 router.get('/:id', httpControlInterno.getControlInternoById);
 router.delete('/:id', httpControlInterno.deleteControlInterno);
 
+// Nueva ruta para obtener URL de descarga de un archivo específico
+router.get('/:id/file/:fileIndex/download', httpControlInterno.getFileDownloadURL);
+
 export default router;

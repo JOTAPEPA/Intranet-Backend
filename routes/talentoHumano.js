@@ -16,6 +16,7 @@ const handleMulterError = (err, req, res, next) => {
 router.post('/', [upload.array('documentos', 10), handleMulterError], httpTalentoHumano.postTalentoHumano);
 router.get('/', httpTalentoHumano.getTalentoHumano);
 router.get('/:id', httpTalentoHumano.getTalentoHumanoById);
+router.get('/:id/file/:fileIndex/download', httpTalentoHumano.getFileDownloadURL);
 router.delete('/:id', httpTalentoHumano.deleteTalentoHumano);
 
 export default router;

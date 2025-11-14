@@ -1,6 +1,6 @@
 import compras from '../models/compras.js';
 import Compra from '../models/compras.js';
-import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinaryUtils.js';
+import firebaseStorageService from '../services/firebaseStorage.js';
 
 const httpCompra = {
 
@@ -8,14 +8,12 @@ const httpCompra = {
         console.log('🚀 === LLEGÓ AL CONTROLADOR POST COMPRA ===');
         
         try {
-            const {
-                documento,
-            } = req.body;
+            const { documento } = req.body;
 
-            console.log('=== DEBUG POST COMPRA ===');
-            console.log('req.body:', req.body);
-            console.log('req.files:', req.files);
-            console.log('Files length:', req.files ? req.files.length : 0);
+            console.log('📋 Datos recibidos:', {
+                documento,
+                filesCount: req.files ? req.files.length : 0
+            });
 
             // Crear el objeto base de la compra
             const compraData = {
@@ -23,66 +21,82 @@ const httpCompra = {
                 documentos: []
             };
 
-            // Si hay archivos subidos, procesarlos
+            // Si hay archivos subidos, subirlos a Firebase Storage
             if (req.files && req.files.length > 0) {
-                console.log(`Procesando ${req.files.length} archivo(s)...`);
+                console.log(`📤 Procesando ${req.files.length} archivo(s)...`);
                 
-                // Subir cada archivo a Cloudinary
-                for (const file of req.files) {
-                    console.log('Processing file:', {
-                        originalname: file.originalname,
+                try {
+                    // Subir archivos a Firebase Storage con nombres originales
+                    const uploadedFiles = await firebaseStorageService.uploadMultipleFilesWithOriginalNames(
+                        req.files, 
+                        'compras' // Carpeta específica para documentos de compras
+                    );
+
+                    // Agregar información de los archivos subidos al documento
+                    compraData.documentos = uploadedFiles.map(file => ({
+                        originalName: file.originalName,
+                        fileName: file.fileName,
+                        filePath: file.filePath,
+                        downloadURL: file.downloadURL,
                         mimetype: file.mimetype,
                         size: file.size,
-                        bufferLength: file.buffer ? file.buffer.length : 'undefined'
+                        uploadDate: file.uploadDate,
+                        firebaseRef: file.firebaseRef
+                    }));
+
+                    console.log(`✅ ${uploadedFiles.length} archivo(s) subido(s) a Firebase Storage`);
+
+                } catch (uploadError) {
+                    console.error('❌ Error subiendo archivos a Firebase:', uploadError);
+                    return res.status(500).json({ 
+                        message: "Error subiendo archivos", 
+                        error: uploadError.message 
                     });
-                    
-                    try {
-                        const uploadResult = await uploadToCloudinary(
-                            file.buffer,
-                            'compras',
-                            'auto'
-                        );
-
-                        // Agregar información del archivo al array de documentos
-                        compraData.documentos.push({
-                            url: uploadResult.url,
-                            public_id: uploadResult.public_id,
-                            originalName: file.originalname,
-                            format: uploadResult.format,
-                            bytes: uploadResult.bytes
-                        });
-
-                        console.log(`Archivo ${file.originalname} subido exitosamente`);
-                    } catch (uploadError) {
-                        console.error(`Error subiendo archivo ${file.originalname}:`, uploadError);
-                        return res.status(500).json({ 
-                            message: `Error subiendo archivo ${file.originalname}`,
-                            error: uploadError.message 
-                        });
-                    }
                 }
             } else {
-                console.log('=== NO FILES DETECTED ===');
-                console.log('req.files is:', req.files);
-                console.log('req.file is:', req.file);
-                console.log('Available req properties:', Object.keys(req));
+                console.log('ℹ️ No se recibieron archivos');
             }
 
-            console.log('=== FINAL COMPRA DATA ===');
-            console.log('compraData:', JSON.stringify(compraData, null, 2));
+            console.log('💾 Guardando en base de datos...');
             
+            // Crear y guardar el documento en la base de datos
             const newDocument = new Compra(compraData);
             const savedDocument = await newDocument.save();
             
+            console.log('✅ Compra guardada exitosamente:', savedDocument._id);
+            
             res.status(201).json({ 
-                message: "Compra created successfully", 
-                savedDocument,
-                filesUploaded: compraData.documentos.length
+                message: "Compra creada exitosamente", 
+                data: savedDocument,
+                filesUploaded: compraData.documentos.length,
+                documents: compraData.documentos.map(doc => ({
+                    originalName: doc.originalName,
+                    downloadURL: doc.downloadURL,
+                    size: doc.size
+                }))
             });
 
         } catch (error) {
-            console.error("Error creating compra:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
+            console.error("❌ Error en POST compra:", error);
+            
+            // Si hay un error y ya se subieron archivos, intentar limpiarlos
+            if (req.uploadedFiles && req.uploadedFiles.length > 0) {
+                try {
+                    await firebaseStorageService.deleteMultipleFiles(
+                        req.uploadedFiles.map(file => file.filePath)
+                    );
+                    console.log('🧹 Archivos limpiados después del error');
+                } catch (cleanupError) {
+                    console.error('❌ Error limpiando archivos:', cleanupError);
+                }
+            }
+            
+            if (!res.headersSent) {
+                res.status(500).json({ 
+                    message: "Error interno del servidor", 
+                    error: error.message 
+                });
+            }
         }
     },
 
@@ -116,29 +130,89 @@ const httpCompra = {
         try {
             const { id } = req.params;
             const compra = await Compra.findById(id);
-            
+
             if (!compra) {
-                return res.status(404).json({ message: "Compra not found" });
+                return res.status(404).json({ message: "Compra no encontrada" });
             }
 
-            // Eliminar archivos de Cloudinary
+            // Si la compra tiene documentos en Firebase, eliminarlos
             if (compra.documentos && compra.documentos.length > 0) {
-                for (const documento of compra.documentos) {
-                    try {
-                        await deleteFromCloudinary(documento.public_id, 'auto');
-                        console.log(`Archivo ${documento.originalName} eliminado de Cloudinary`);
-                    } catch (deleteError) {
-                        console.error(`Error eliminando archivo ${documento.originalName}:`, deleteError);
+                try {
+                    const filePaths = compra.documentos
+                        .filter(doc => doc.filePath) // Solo documentos con filePath
+                        .map(doc => doc.filePath);
+                    
+                    if (filePaths.length > 0) {
+                        await firebaseStorageService.deleteMultipleFiles(filePaths);
+                        console.log(`🗑️ ${filePaths.length} archivo(s) eliminado(s) de Firebase Storage`);
                     }
+                } catch (deleteError) {
+                    console.error('❌ Error eliminando archivos de Firebase:', deleteError);
+                    // Continuar con la eliminación del documento aunque falle la eliminación de archivos
                 }
             }
 
             await Compra.findByIdAndDelete(id);
-            res.status(200).json({ message: "Compra deleted successfully" });
+            res.status(200).json({ message: "Compra eliminada exitosamente" }); 
             
         } catch (error) {
-            console.error("Error deleting compra:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
+            console.error("Error eliminando compra:", error);
+            res.status(500).json({ message: "Error interno del servidor", error: error.message });
+        }
+    },
+
+    // Nuevo método para obtener URL de descarga de un archivo específico
+    getFileDownloadURL: async (req, res) => {
+        try {
+            const { id, fileIndex } = req.params;
+            
+            const compra = await Compra.findById(id);
+            if (!compra) {
+                return res.status(404).json({ message: "Compra no encontrada" });
+            }
+
+            if (!compra.documentos || compra.documentos.length === 0) {
+                return res.status(404).json({ message: "No hay documentos asociados a esta compra" });
+            }
+
+            const fileIdx = parseInt(fileIndex);
+            if (fileIdx < 0 || fileIdx >= compra.documentos.length) {
+                return res.status(404).json({ message: "Índice de archivo inválido" });
+            }
+
+            const documento = compra.documentos[fileIdx];
+            
+            // Si ya tiene downloadURL, devolverlo directamente
+            if (documento.downloadURL) {
+                return res.status(200).json({
+                    downloadURL: documento.downloadURL,
+                    fileName: documento.originalName,
+                    size: documento.size,
+                    mimetype: documento.mimetype
+                });
+            }
+
+            // Si no tiene downloadURL pero tiene filePath, generarlo
+            if (documento.filePath) {
+                const downloadURL = await firebaseStorageService.getFileDownloadURL(documento.filePath);
+                
+                // Opcional: actualizar el documento con la nueva URL
+                compra.documentos[fileIdx].downloadURL = downloadURL;
+                await compra.save();
+
+                return res.status(200).json({
+                    downloadURL: downloadURL,
+                    fileName: documento.originalName,
+                    size: documento.size,
+                    mimetype: documento.mimetype
+                });
+            }
+
+            return res.status(404).json({ message: "Archivo no encontrado en el almacenamiento" });
+
+        } catch (error) {
+            console.error("Error obteniendo URL de descarga:", error);
+            res.status(500).json({ message: "Error interno del servidor", error: error.message });
         }
     }
 }

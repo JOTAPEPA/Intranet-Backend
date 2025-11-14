@@ -1,51 +1,95 @@
 import Gerencia from '../models/gerencia.js';
-import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinaryUtils.js';
+import { uploadMultipleFilesWithOriginalNames, deleteMultipleFiles } from '../services/firebaseStorage.js';
 
 const httpGerencia = {
 
     postGerencia: async (req, res) => {
         console.log('🚀 === LLEGÓ AL CONTROLADOR POST GERENCIA ===');
-
+        
         try {
             const { documento } = req.body;
-            const gerenciaData = { documento, documentos: [] };
+
+            console.log('📋 Datos recibidos:', {
+                documento,
+                filesCount: req.files ? req.files.length : 0
+            });
+
+            const gerenciaData = {
+                documento,
+                documentos: []
+            };
 
             if (req.files && req.files.length > 0) {
-                console.log(`Procesando ${req.files.length} archivo(s)...`);
+                console.log(`📤 Procesando ${req.files.length} archivo(s)...`);
+                
+                try {
+                    const uploadedFiles = await uploadMultipleFilesWithOriginalNames(
+                        req.files, 
+                        'gerencia'
+                    );
 
-                for (const file of req.files) {
-                    try {
-                        const uploadResult = await uploadToCloudinary(file.buffer, 'gerencia', 'auto');
-                        gerenciaData.documentos.push({
-                            url: uploadResult.url,
-                            public_id: uploadResult.public_id,
-                            originalName: file.originalname,
-                            format: uploadResult.format,
-                            bytes: uploadResult.bytes
-                        });
-                        console.log(`Archivo ${file.originalname} subido exitosamente`);
-                    } catch (uploadError) {
-                        console.error(`Error subiendo archivo ${file.originalname}:`, uploadError);
-                        return res.status(500).json({
-                            message: `Error subiendo archivo ${file.originalname}`,
-                            error: uploadError.message
-                        });
-                    }
+                    gerenciaData.documentos = uploadedFiles.map(file => ({
+                        originalName: file.originalName,
+                        fileName: file.fileName,
+                        filePath: file.filePath,
+                        downloadURL: file.downloadURL,
+                        mimetype: file.mimetype,
+                        size: file.size,
+                        uploadDate: file.uploadDate,
+                        firebaseRef: file.firebaseRef
+                    }));
+
+                    console.log(`✅ ${uploadedFiles.length} archivo(s) subido(s) a Firebase Storage`);
+
+                } catch (uploadError) {
+                    console.error('❌ Error subiendo archivos a Firebase:', uploadError);
+                    return res.status(500).json({ 
+                        message: "Error subiendo archivos", 
+                        error: uploadError.message 
+                    });
                 }
+            } else {
+                console.log('ℹ️ No se recibieron archivos');
             }
 
+            console.log('💾 Guardando en base de datos...');
+            
             const newDocument = new Gerencia(gerenciaData);
             const savedDocument = await newDocument.save();
-
-            res.status(201).json({
-                message: "Gerencia created successfully",
-                savedDocument,
-                filesUploaded: gerenciaData.documentos.length
+            
+            console.log('✅ Gerencia guardada exitosamente:', savedDocument._id);
+            
+            res.status(201).json({ 
+                message: "Gerencia creada exitosamente", 
+                gerencia: savedDocument,
+                filesUploaded: gerenciaData.documentos.length,
+                documents: gerenciaData.documentos.map(doc => ({
+                    originalName: doc.originalName,
+                    downloadURL: doc.downloadURL,
+                    size: doc.size
+                }))
             });
 
         } catch (error) {
-            console.error("Error creating gerencia:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
+            console.error("❌ Error en POST gerencia:", error);
+            
+            if (req.uploadedFiles && req.uploadedFiles.length > 0) {
+                try {
+                    await deleteMultipleFiles(
+                        req.uploadedFiles.map(file => file.filePath)
+                    );
+                    console.log('🧹 Archivos limpiados después del error');
+                } catch (cleanupError) {
+                    console.error('❌ Error limpiando archivos:', cleanupError);
+                }
+            }
+            
+            if (!res.headersSent) {
+                res.status(500).json({ 
+                    message: "Error interno del servidor", 
+                    error: error.message 
+                });
+            }
         }
     },
 
@@ -71,21 +115,40 @@ const httpGerencia = {
         }
     },
 
+    getFileDownloadURL: async (req, res) => {
+        try {
+            const { id, fileIndex } = req.params;
+            
+            const gerencia = await Gerencia.findById(id);
+            if (!gerencia) {
+                return res.status(404).json({ message: "Documento de gerencia no encontrado" });
+            }
+
+            const fileIdx = parseInt(fileIndex);
+            if (fileIdx < 0 || fileIdx >= gerencia.documentos.length) {
+                return res.status(404).json({ message: "Archivo no encontrado" });
+            }
+
+            const documento = gerencia.documentos[fileIdx];
+            
+            if (!documento.downloadURL) {
+                return res.status(404).json({ message: "URL de descarga no disponible" });
+            }
+
+            // Redirigir a la URL de descarga de Firebase
+            res.redirect(documento.downloadURL);
+            
+        } catch (error) {
+            console.error("❌ Error obteniendo URL de descarga:", error);
+            res.status(500).json({ message: "Error interno del servidor", error: error.message });
+        }
+    },
+
     deleteGerencia: async (req, res) => {
         try {
             const { id } = req.params;
             const gerencia = await Gerencia.findById(id);
             if (!gerencia) return res.status(404).json({ message: "Gerencia not found" });
-
-            if (gerencia.documentos && gerencia.documentos.length > 0) {
-                for (const documento of gerencia.documentos) {
-                    try {
-                        await deleteFromCloudinary(documento.public_id, 'auto');
-                    } catch (deleteError) {
-                        console.error(`Error eliminando archivo ${documento.originalName}:`, deleteError);
-                    }
-                }
-            }
 
             await Gerencia.findByIdAndDelete(id);
             res.status(200).json({ message: "Gerencia deleted successfully" });

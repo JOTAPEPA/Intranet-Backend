@@ -55,4 +55,7 @@ router.get('/:id', httpCompra.getCompraById);
 
 router.delete('/:id', httpCompra.deleteCompra);
 
+// Nueva ruta para obtener URL de descarga de un archivo específico
+router.get('/:id/file/:fileIndex/download', httpCompra.getFileDownloadURL);
+
 export default router;

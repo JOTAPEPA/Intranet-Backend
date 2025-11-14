@@ -1,20 +1,18 @@
 import ControlInterno from '../models/controlInterno.js';
-import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinaryUtils.js';
+import firebaseStorageService from '../services/firebaseStorage.js';
 
 const httpControlInterno = {
 
     postControlInterno: async (req, res) => {
         console.log('🚀 === LLEGÓ AL CONTROLADOR POST CONTROL INTERNO ===');
-
+        
         try {
-            const {
-                documento,
-            } = req.body;
+            const { documento } = req.body;
 
-            console.log('=== DEBUG POST CONTROL INTERNO ===');
-            console.log('req.body:', req.body);
-            console.log('req.files:', req.files);
-            console.log('Files length:', req.files ? req.files.length : 0);
+            console.log('📋 Datos recibidos:', {
+                documento,
+                filesCount: req.files ? req.files.length : 0
+            });
 
             // Crear el objeto base del control interno
             const controlInternoData = {
@@ -22,63 +20,82 @@ const httpControlInterno = {
                 documentos: []
             };
 
-            // Si hay archivos subidos, procesarlos
+            // Si hay archivos subidos, subirlos a Firebase Storage
             if (req.files && req.files.length > 0) {
-                console.log(`Procesando ${req.files.length} archivo(s)...`);
+                console.log(`📤 Procesando ${req.files.length} archivo(s)...`);
+                
+                try {
+                    // Subir archivos a Firebase Storage con nombres originales
+                    const uploadedFiles = await firebaseStorageService.uploadMultipleFilesWithOriginalNames(
+                        req.files, 
+                        'control-interno' // Carpeta específica para documentos de control interno
+                    );
 
-                // Subir cada archivo a Cloudinary
-                for (const file of req.files) {
-                    console.log('Processing file:', {
-                        originalname: file.originalname,
+                    // Agregar información de los archivos subidos al documento
+                    controlInternoData.documentos = uploadedFiles.map(file => ({
+                        originalName: file.originalName,
+                        fileName: file.fileName,
+                        filePath: file.filePath,
+                        downloadURL: file.downloadURL,
                         mimetype: file.mimetype,
                         size: file.size,
-                        bufferLength: file.buffer ? file.buffer.length : 'undefined'
+                        uploadDate: file.uploadDate,
+                        firebaseRef: file.firebaseRef
+                    }));
+
+                    console.log(`✅ ${uploadedFiles.length} archivo(s) subido(s) a Firebase Storage`);
+
+                } catch (uploadError) {
+                    console.error('❌ Error subiendo archivos a Firebase:', uploadError);
+                    return res.status(500).json({ 
+                        message: "Error subiendo archivos", 
+                        error: uploadError.message 
                     });
-
-                    try {
-                        const uploadResult = await uploadToCloudinary(
-                            file.buffer,
-                            'control-interno',
-                            'auto'
-                        );
-
-                        // Agregar información del archivo al array de documentos
-                        controlInternoData.documentos.push({
-                            url: uploadResult.url,
-                            public_id: uploadResult.public_id,
-                            originalName: file.originalname,
-                            format: uploadResult.format,
-                            bytes: uploadResult.bytes
-                        });
-
-                        console.log(`Archivo ${file.originalname} subido exitosamente`);
-                    } catch (uploadError) {
-                        console.error(`Error subiendo archivo ${file.originalname}:`, uploadError);
-                        return res.status(500).json({
-                            message: `Error subiendo archivo ${file.originalname}`,
-                            error: uploadError.message
-                        });
-                    }
                 }
             } else {
-                console.log('=== NO FILES DETECTED ===');
+                console.log('ℹ️ No se recibieron archivos');
             }
 
-            console.log('=== FINAL CONTROL INTERNO DATA ===');
-            console.log('controlInternoData:', JSON.stringify(controlInternoData, null, 2));
-
+            console.log('💾 Guardando en base de datos...');
+            
+            // Crear y guardar el documento en la base de datos
             const newDocument = new ControlInterno(controlInternoData);
             const savedDocument = await newDocument.save();
-
-            res.status(201).json({
-                message: "Control Interno created successfully",
-                savedDocument,
-                filesUploaded: controlInternoData.documentos.length
+            
+            console.log('✅ Control Interno guardado exitosamente:', savedDocument._id);
+            
+            res.status(201).json({ 
+                message: "Control Interno creado exitosamente", 
+                controlInterno: savedDocument,
+                filesUploaded: controlInternoData.documentos.length,
+                documents: controlInternoData.documentos.map(doc => ({
+                    originalName: doc.originalName,
+                    downloadURL: doc.downloadURL,
+                    size: doc.size
+                }))
             });
 
         } catch (error) {
-            console.error("Error creating control interno:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
+            console.error("❌ Error en POST control interno:", error);
+            
+            // Si hay un error y ya se subieron archivos, intentar limpiarlos
+            if (req.uploadedFiles && req.uploadedFiles.length > 0) {
+                try {
+                    await firebaseStorageService.deleteMultipleFiles(
+                        req.uploadedFiles.map(file => file.filePath)
+                    );
+                    console.log('🧹 Archivos limpiados después del error');
+                } catch (cleanupError) {
+                    console.error('❌ Error limpiando archivos:', cleanupError);
+                }
+            }
+            
+            if (!res.headersSent) {
+                res.status(500).json({ 
+                    message: "Error interno del servidor", 
+                    error: error.message 
+                });
+            }
         }
     },
 
@@ -114,27 +131,87 @@ const httpControlInterno = {
             const controlInterno = await ControlInterno.findById(id);
 
             if (!controlInterno) {
-                return res.status(404).json({ message: "Control Interno not found" });
+                return res.status(404).json({ message: "Control Interno no encontrado" });
             }
 
-            // Eliminar archivos de Cloudinary
+            // Si el control interno tiene documentos en Firebase, eliminarlos
             if (controlInterno.documentos && controlInterno.documentos.length > 0) {
-                for (const documento of controlInterno.documentos) {
-                    try {
-                        await deleteFromCloudinary(documento.public_id, 'auto');
-                        console.log(`Archivo ${documento.originalName} eliminado de Cloudinary`);
-                    } catch (deleteError) {
-                        console.error(`Error eliminando archivo ${documento.originalName}:`, deleteError);
+                try {
+                    const filePaths = controlInterno.documentos
+                        .filter(doc => doc.filePath) // Solo documentos con filePath
+                        .map(doc => doc.filePath);
+                    
+                    if (filePaths.length > 0) {
+                        await firebaseStorageService.deleteMultipleFiles(filePaths);
+                        console.log(`🗑️ ${filePaths.length} archivo(s) eliminado(s) de Firebase Storage`);
                     }
+                } catch (deleteError) {
+                    console.error('❌ Error eliminando archivos de Firebase:', deleteError);
+                    // Continuar con la eliminación del documento aunque falle la eliminación de archivos
                 }
             }
 
             await ControlInterno.findByIdAndDelete(id);
-            res.status(200).json({ message: "Control Interno deleted successfully" });
+            res.status(200).json({ message: "Control Interno eliminado exitosamente" });
 
         } catch (error) {
-            console.error("Error deleting control interno:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
+            console.error("Error eliminando control interno:", error);
+            res.status(500).json({ message: "Error interno del servidor", error: error.message });
+        }
+    },
+
+    // Nuevo método para obtener URL de descarga de un archivo específico
+    getFileDownloadURL: async (req, res) => {
+        try {
+            const { id, fileIndex } = req.params;
+            
+            const controlInterno = await ControlInterno.findById(id);
+            if (!controlInterno) {
+                return res.status(404).json({ message: "Control Interno no encontrado" });
+            }
+
+            if (!controlInterno.documentos || controlInterno.documentos.length === 0) {
+                return res.status(404).json({ message: "No hay documentos asociados a este control interno" });
+            }
+
+            const fileIdx = parseInt(fileIndex);
+            if (fileIdx < 0 || fileIdx >= controlInterno.documentos.length) {
+                return res.status(404).json({ message: "Índice de archivo inválido" });
+            }
+
+            const documento = controlInterno.documentos[fileIdx];
+            
+            // Si ya tiene downloadURL, devolverlo directamente
+            if (documento.downloadURL) {
+                return res.status(200).json({
+                    downloadURL: documento.downloadURL,
+                    fileName: documento.originalName,
+                    size: documento.size,
+                    mimetype: documento.mimetype
+                });
+            }
+
+            // Si no tiene downloadURL pero tiene filePath, generarlo
+            if (documento.filePath) {
+                const downloadURL = await firebaseStorageService.getFileDownloadURL(documento.filePath);
+                
+                // Opcional: actualizar el documento con la nueva URL
+                controlInterno.documentos[fileIdx].downloadURL = downloadURL;
+                await controlInterno.save();
+
+                return res.status(200).json({
+                    downloadURL: downloadURL,
+                    fileName: documento.originalName,
+                    size: documento.size,
+                    mimetype: documento.mimetype
+                });
+            }
+
+            return res.status(404).json({ message: "Archivo no encontrado en el almacenamiento" });
+
+        } catch (error) {
+            console.error("Error obteniendo URL de descarga:", error);
+            res.status(500).json({ message: "Error interno del servidor", error: error.message });
         }
     }
 }

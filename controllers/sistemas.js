@@ -1,10 +1,11 @@
-import Contabilidad from '../models/contabilidad.js';
+import sistemas from '../models/sistemas.js';
+import Sistema from '../models/sistemas.js';
 import firebaseStorageService from '../services/firebaseStorage.js';
 
-const httpContabilidad = {
+const httpSistema = {
 
-    postContabilidad: async (req, res) => {
-        console.log('🚀 === LLEGÓ AL CONTROLADOR POST CONTABILIDAD ===');
+    postSistema: async (req, res) => {
+        console.log('🚀 === LLEGÓ AL CONTROLADOR POST SISTEMA ===');
         
         try {
             const { documento } = req.body;
@@ -14,8 +15,8 @@ const httpContabilidad = {
                 filesCount: req.files ? req.files.length : 0
             });
 
-            // Crear el objeto base de la contabilidad
-            const contabilidadData = {
+            // Crear el objeto base del sistema
+            const sistemaData = {
                 documento,
                 documentos: []
             };
@@ -28,11 +29,11 @@ const httpContabilidad = {
                     // Subir archivos a Firebase Storage con nombres originales
                     const uploadedFiles = await firebaseStorageService.uploadMultipleFilesWithOriginalNames(
                         req.files, 
-                        'contabilidad' // Carpeta específica para documentos de contabilidad
+                        'sistemas' // Carpeta específica para documentos de sistemas
                     );
 
                     // Agregar información de los archivos subidos al documento
-                    contabilidadData.documentos = uploadedFiles.map(file => ({
+                    sistemaData.documentos = uploadedFiles.map(file => ({
                         originalName: file.originalName,
                         fileName: file.fileName,
                         filePath: file.filePath,
@@ -59,16 +60,16 @@ const httpContabilidad = {
             console.log('💾 Guardando en base de datos...');
             
             // Crear y guardar el documento en la base de datos
-            const newDocument = new Contabilidad(contabilidadData);
+            const newDocument = new Sistema(sistemaData);
             const savedDocument = await newDocument.save();
             
-            console.log('✅ Contabilidad guardada exitosamente:', savedDocument._id);
+            console.log('✅ Sistema guardado exitosamente:', savedDocument._id);
             
             res.status(201).json({ 
-                message: "Contabilidad creada exitosamente", 
-                contabilidad: savedDocument,
-                filesUploaded: contabilidadData.documentos.length,
-                documents: contabilidadData.documentos.map(doc => ({
+                message: "Sistema creado exitosamente", 
+                data: savedDocument,
+                filesUploaded: sistemaData.documentos.length,
+                documents: sistemaData.documentos.map(doc => ({
                     originalName: doc.originalName,
                     downloadURL: doc.downloadURL,
                     size: doc.size
@@ -76,7 +77,7 @@ const httpContabilidad = {
             });
 
         } catch (error) {
-            console.error("❌ Error en POST contabilidad:", error);
+            console.error("❌ Error en POST sistema:", error);
             
             // Si hay un error y ya se subieron archivos, intentar limpiarlos
             if (req.uploadedFiles && req.uploadedFiles.length > 0) {
@@ -99,45 +100,45 @@ const httpContabilidad = {
         }
     },
 
-    getContabilidad: async (req, res) => {
+    getSistemas: async (req, res) => {
         try {
-            const contabilidad = await Contabilidad.find();
-            res.json(contabilidad);
+           const sistemas = await Sistema.find(); 
+           res.json(sistemas);   
+    } catch (error) {
+              console.error("Error fetching sistemas:", error);
+              res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+},
+
+    getSistemaById: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const sistema = await Sistema.findById(id);
+            
+            if (!sistema) {
+                return res.status(404).json({ message: "Sistema not found" });
+            }
+            
+            res.status(200).json({ sistema });
         } catch (error) {
-            console.error("Error fetching compras:", error);
+            console.error("Error fetching sistema:", error);
             res.status(500).json({ message: "Internal server error", error: error.message });
         }
     },
 
-    getContabilidadById: async (req, res) => {
+    deleteSistema: async (req, res) => {
         try {
             const { id } = req.params;
-            const contabilidad = await Contabilidad.findById(id);
+            const sistema = await Sistema.findById(id);
 
-            if (!contabilidad) {
-                return res.status(404).json({ message: "Contabilidad not found" });
+            if (!sistema) {
+                return res.status(404).json({ message: "Sistema no encontrado" });
             }
 
-            res.status(200).json({ contabilidad });
-        } catch (error) {
-            console.error("Error fetching contabilidad:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
-        }
-    },
-
-    deleteContabilidad: async (req, res) => {
-        try {
-            const { id } = req.params;
-            const contabilidad = await Contabilidad.findById(id);
-
-            if (!contabilidad) {
-                return res.status(404).json({ message: "Contabilidad no encontrada" });
-            }
-
-            // Si la contabilidad tiene documentos en Firebase, eliminarlos
-            if (contabilidad.documentos && contabilidad.documentos.length > 0) {
+            // Si el sistema tiene documentos en Firebase, eliminarlos
+            if (sistema.documentos && sistema.documentos.length > 0) {
                 try {
-                    const filePaths = contabilidad.documentos
+                    const filePaths = sistema.documentos
                         .filter(doc => doc.filePath) // Solo documentos con filePath
                         .map(doc => doc.filePath);
                     
@@ -151,11 +152,11 @@ const httpContabilidad = {
                 }
             }
 
-            await Contabilidad.findByIdAndDelete(id);
-            res.status(200).json({ message: "Contabilidad eliminada exitosamente" });
-
+            await Sistema.findByIdAndDelete(id);
+            res.status(200).json({ message: "Sistema eliminado exitosamente" }); 
+            
         } catch (error) {
-            console.error("Error eliminando contabilidad:", error);
+            console.error("Error eliminando sistema:", error);
             res.status(500).json({ message: "Error interno del servidor", error: error.message });
         }
     },
@@ -165,21 +166,21 @@ const httpContabilidad = {
         try {
             const { id, fileIndex } = req.params;
             
-            const contabilidad = await Contabilidad.findById(id);
-            if (!contabilidad) {
-                return res.status(404).json({ message: "Contabilidad no encontrada" });
+            const sistema = await Sistema.findById(id);
+            if (!sistema) {
+                return res.status(404).json({ message: "Sistema no encontrado" });
             }
 
-            if (!contabilidad.documentos || contabilidad.documentos.length === 0) {
-                return res.status(404).json({ message: "No hay documentos asociados a esta contabilidad" });
+            if (!sistema.documentos || sistema.documentos.length === 0) {
+                return res.status(404).json({ message: "No hay documentos asociados a este sistema" });
             }
 
             const fileIdx = parseInt(fileIndex);
-            if (fileIdx < 0 || fileIdx >= contabilidad.documentos.length) {
+            if (fileIdx < 0 || fileIdx >= sistema.documentos.length) {
                 return res.status(404).json({ message: "Índice de archivo inválido" });
             }
 
-            const documento = contabilidad.documentos[fileIdx];
+            const documento = sistema.documentos[fileIdx];
             
             // Si ya tiene downloadURL, devolverlo directamente
             if (documento.downloadURL) {
@@ -196,8 +197,8 @@ const httpContabilidad = {
                 const downloadURL = await firebaseStorageService.getFileDownloadURL(documento.filePath);
                 
                 // Opcional: actualizar el documento con la nueva URL
-                contabilidad.documentos[fileIdx].downloadURL = downloadURL;
-                await contabilidad.save();
+                sistema.documentos[fileIdx].downloadURL = downloadURL;
+                await sistema.save();
 
                 return res.status(200).json({
                     downloadURL: downloadURL,
@@ -216,4 +217,4 @@ const httpContabilidad = {
     }
 }
 
-export default httpContabilidad;
+export default httpSistema;

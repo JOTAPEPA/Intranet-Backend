@@ -1,12 +1,12 @@
 import { Router } from "express";
-import httpContabilidad from "../controllers/contabilidad.js";
+import httpSistema from "../controllers/sistemas.js";
 import upload from "../Middlewares/uploadMiddleware.js";
 
 const router = Router();
 
 // Middleware de manejo de errores para Multer
 const handleMulterError = (err, req, res, next) => {
-    console.error('=== MULTER ERROR CONTABILIDAD ===');
+    console.error('=== MULTER ERROR ===');
     console.error('Error:', err.message);
     console.error('Error code:', err.code);
     console.error('Field:', err.field);
@@ -32,6 +32,7 @@ const handleMulterError = (err, req, res, next) => {
         });
     }
     
+
     res.status(500).json({ 
         message: 'Error procesando archivos', 
         error: err.message,
@@ -39,22 +40,22 @@ const handleMulterError = (err, req, res, next) => {
     });
 };
 
-// Ruta para crear una nueva contabilidad con archivos adjuntos
+
 router.post('/', [
-    upload.array('documentos', 10), // Máximo 10 archivos
-    handleMulterError // Manejo de errores de Multer
-], httpContabilidad.postContabilidad);
+    upload.array('documentos', 10),
+    handleMulterError 
+], httpSistema.postSistema);
 
-// Ruta para obtener todas las contabilidades
-router.get('/', httpContabilidad.getContabilidad);
 
-// Ruta para obtener una contabilidad por ID
-router.get('/:id', httpContabilidad.getContabilidadById);
+router.get('/', httpSistema.getSistemas);
 
-// Ruta para eliminar una contabilidad
-router.delete('/:id', httpContabilidad.deleteContabilidad);
+
+router.get('/:id', httpSistema.getSistemaById);
+
+
+router.delete('/:id', httpSistema.deleteSistema);
 
 // Nueva ruta para obtener URL de descarga de un archivo específico
-router.get('/:id/file/:fileIndex/download', httpContabilidad.getFileDownloadURL);
+router.get('/:id/file/:fileIndex/download', httpSistema.getFileDownloadURL);
 
 export default router;

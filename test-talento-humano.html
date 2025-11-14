@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test de Subida de Archivos - Firebase Storage</title>
+    <title>Test - Talento Humano Firebase</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -59,7 +59,7 @@
         }
         
         button {
-            background: #007bff;
+            background: #20c997;
             color: white;
             padding: 12px 30px;
             border: none;
@@ -71,7 +71,7 @@
         }
         
         button:hover {
-            background: #0056b3;
+            background: #1ba085;
         }
         
         button:disabled {
@@ -116,7 +116,7 @@
             display: inline-block;
             margin: 5px 10px 5px 0;
             padding: 5px 10px;
-            background: #28a745;
+            background: #20c997;
             color: white;
             text-decoration: none;
             border-radius: 3px;
@@ -124,15 +124,15 @@
         }
         
         .download-link:hover {
-            background: #218838;
+            background: #1ba085;
         }
         
         .config-info {
-            background: #fff3cd;
+            background: #d1ecf1;
             padding: 15px;
             border-radius: 5px;
             margin-bottom: 20px;
-            border-left: 4px solid #ffc107;
+            border-left: 4px solid #20c997;
         }
         
         .file-preview {
@@ -151,61 +151,71 @@
             padding: 8px;
             margin: 5px 0;
             border-radius: 3px;
-            border-left: 3px solid #007bff;
+            border-left: 3px solid #20c997;
+        }
+        
+        .highlight {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+            margin: 10px 0;
+        }
+        
+        .warning {
+            background: #f8d7da;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #dc3545;
+            margin: 10px 0;
+            color: #721c24;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔥 Test de Subida de Archivos - Compras (Nombres Originales)</h1>
+        <h1>👥 Test Talento Humano - Firebase Storage</h1>
+        
+        <div class="warning">
+            <strong>🚧 MÓDULO EN DESARROLLO:</strong> Este módulo está en proceso de implementación. Algunos endpoints pueden no estar completamente funcionales.
+        </div>
+        
+        <div class="highlight">
+            <strong>👥 TALENTO HUMANO:</strong> Contratos, evaluaciones de desempeño y documentos de recursos humanos se guardan con <strong>nombres originales</strong>.
+        </div>
         
         <div class="config-info">
             <strong>📡 Configuración del Test:</strong><br>
-            <strong>Endpoint:</strong> <span id="endpoint-url">http://localhost:5000/api/compras</span><br>
+            <strong>Endpoint:</strong> <span id="endpoint-url">http://localhost:5000/api/talento-humano</span><br>
+            <strong>Carpeta Firebase:</strong> talento-humano/<br>
             <strong>🎯 Nombres de archivo:</strong> Se mantienen los nombres originales<br>
             <strong>Tipos permitidos:</strong> PDF, DOC, DOCX, XLS, XLSX, TXT, CSV, JPG, PNG, GIF, WEBP<br>
-            <strong>Tamaño máximo:</strong> Por archivo según configuración del servidor<br>
             <strong>Máximo archivos:</strong> 10 archivos por solicitud
         </div>
         
         <form id="uploadForm">
             <div class="form-group">
-                <label for="solicitante">👤 Solicitante:</label>
-                <input type="text" id="solicitante" name="solicitante" value="Usuario Test" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="descripcion">📝 Descripción:</label>
-                <textarea id="descripcion" name="descripcion" placeholder="Test de subida de archivos a Firebase Storage">Test de subida de archivos a Firebase Storage desde HTML</textarea>
-            </div>
-            
-            <div class="form-group">
-                <label for="proveedor">🏢 Proveedor:</label>
-                <input type="text" id="proveedor" name="proveedor" value="Proveedor Test">
-            </div>
-            
-            <div class="form-group">
-                <label for="valor">💰 Valor:</label>
-                <input type="text" id="valor" name="valor" value="100000">
+                <label for="documento">📋 Documento de Talento Humano:</label>
+                <textarea id="documento" name="documento" placeholder="Descripción del documento de talento humano" required>Contrato laboral y documentos de vinculación - Gestión de recursos humanos</textarea>
             </div>
             
             <div class="form-group">
                 <label for="documentos">📁 Seleccionar Archivos (máximo 10):</label>
                 <input type="file" id="documentos" name="documentos" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.gif,.webp">
                 <div class="file-preview">
-                    <small>Los archivos se guardarán con sus <strong>nombres originales</strong> en Firebase Storage</small>
+                    <small>Ejemplos: Contratos laborales, evaluaciones de desempeño, hojas de vida, certificaciones</small>
                 </div>
                 <div id="selected-files" class="selected-files"></div>
             </div>
             
             <button type="submit" id="uploadBtn">
-                🚀 Subir Archivos con Nombres Originales
+                👥 Subir Documentos de Talento Humano
             </button>
         </form>
         
         <div class="loading" id="loading">
-            <p>⏳ Subiendo archivos a Firebase Storage...</p>
-            <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p>⏳ Subiendo archivos a Firebase Storage (talento-humano/)...</p>
+            <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #20c997; border-radius: 50%; animation: spin 1s linear infinite;"></div>
         </div>
         
         <div class="result" id="result"></div>
@@ -220,7 +230,7 @@
 
     <script>
         // Configuración
-        const SERVER_URL = 'http://localhost:5000'; // Cambia esto si tu servidor está en otro puerto
+        const SERVER_URL = 'http://localhost:5000';
         
         // Referencias del DOM
         const form = document.getElementById('uploadForm');
@@ -232,7 +242,7 @@
         const endpointSpan = document.getElementById('endpoint-url');
         
         // Actualizar URL del endpoint
-        endpointSpan.textContent = `${SERVER_URL}/api/compras`;
+        endpointSpan.textContent = `${SERVER_URL}/api/talento-humano`;
         
         // Mostrar archivos seleccionados
         fileInput.addEventListener('change', function() {
@@ -240,14 +250,14 @@
             selectedFilesDiv.innerHTML = '';
             
             if (files.length > 0) {
-                selectedFilesDiv.innerHTML = '<strong>📁 Archivos que se subirán con nombres originales:</strong><br>';
+                selectedFilesDiv.innerHTML = '<strong>📁 Archivos de Talento Humano seleccionados:</strong><br>';
                 files.forEach((file, index) => {
                     const fileDiv = document.createElement('div');
                     fileDiv.className = 'file-item';
                     fileDiv.innerHTML = `
-                        <strong>${index + 1}.</strong> <span style="color: #007bff; font-weight: bold;">${file.name}</span>
+                        <strong>${index + 1}.</strong> <span style="color: #20c997; font-weight: bold;">${file.name}</span>
                         <span style="color: #666;">(${formatFileSize(file.size)} - ${file.type})</span>
-                        <br><small>🎯 Se guardará como: <strong>compras/${file.name}</strong></small>
+                        <br><small>🎯 Se guardará como: <strong>talento-humano/${file.name}</strong></small>
                     `;
                     selectedFilesDiv.appendChild(fileDiv);
                 });
@@ -271,10 +281,7 @@
             
             // Preparar FormData
             const formData = new FormData();
-            formData.append('solicitante', document.getElementById('solicitante').value);
-            formData.append('descripcion', document.getElementById('descripcion').value);
-            formData.append('proveedor', document.getElementById('proveedor').value);
-            formData.append('valor', document.getElementById('valor').value);
+            formData.append('documento', document.getElementById('documento').value);
             
             // Agregar archivos
             for (let file of files) {
@@ -287,10 +294,10 @@
             result.style.display = 'none';
             
             try {
-                console.log('📤 Enviando archivos a:', `${SERVER_URL}/api/compras`);
+                console.log('📤 Enviando archivos de Talento Humano a:', `${SERVER_URL}/api/talento-humano`);
                 console.log('📁 Cantidad de archivos:', files.length);
                 
-                const response = await fetch(`${SERVER_URL}/api/compras`, {
+                const response = await fetch(`${SERVER_URL}/api/talento-humano`, {
                     method: 'POST',
                     body: formData
                 });
@@ -302,44 +309,49 @@
                 
                 if (response.ok) {
                     let successMessage = `
-                        <h3>✅ ¡Archivos de compras subidos con nombres originales!</h3>
-                        <p><strong>ID de la compra:</strong> ${data.compra._id}</p>
-                        <p><strong>Solicitante:</strong> ${data.compra.solicitante}</p>
-                        <p><strong>Descripción:</strong> ${data.compra.descripcion}</p>
-                        <p><strong>Archivos subidos:</strong> ${data.compra.documentos.length}</p>
+                        <h3>✅ ¡Documentos de Talento Humano subidos exitosamente!</h3>
+                        <p><strong>ID del registro:</strong> ${data.talentoHumano ? data.talentoHumano._id : 'N/A'}</p>
+                        <p><strong>Documento:</strong> ${data.talentoHumano ? data.talentoHumano.documento : 'N/A'}</p>
+                        <p><strong>Archivos subidos:</strong> ${data.talentoHumano ? data.talentoHumano.documentos.length : 0}</p>
                         <hr>
-                        <h4>📁 Archivos en Firebase con nombres originales:</h4>
+                        <h4>📁 Archivos en Firebase (talento-humano/):</h4>
                     `;
                     
-                    data.compra.documentos.forEach((doc, index) => {
-                        const isOriginalName = doc.fileName === doc.originalName;
-                        successMessage += `
-                            <div class="file-info">
-                                <strong>Archivo ${index + 1}:</strong><br>
-                                <strong>Nombre original:</strong> ${doc.originalName}<br>
-                                <strong>Nombre en Firebase:</strong> <span style="color: ${isOriginalName ? 'green' : 'orange'}; font-weight: bold;">${doc.fileName}</span>
-                                ${isOriginalName ? '<span style="color: green;">✅ Nombre conservado</span>' : '<span style="color: orange;">⚠️ Nombre modificado</span>'}<br>
-                                <strong>Ruta en Firebase:</strong> ${doc.firebaseRef}<br>
-                                <strong>Tamaño:</strong> ${formatFileSize(doc.size)}<br>
-                                <strong>Tipo:</strong> ${doc.mimetype}<br>
-                                <strong>Fecha de subida:</strong> ${new Date(doc.uploadDate).toLocaleString()}<br>
-                                <a href="${doc.downloadURL}" target="_blank" class="download-link">
-                                    🔗 Ver/Descargar archivo
-                                </a>
-                            </div>
-                        `;
-                    });
+                    if (data.talentoHumano && data.talentoHumano.documentos) {
+                        data.talentoHumano.documentos.forEach((doc, index) => {
+                            const isOriginalName = doc.fileName === doc.originalName;
+                            successMessage += `
+                                <div class="file-info">
+                                    <strong>Archivo ${index + 1}:</strong><br>
+                                    <strong>Nombre original:</strong> ${doc.originalName}<br>
+                                    <strong>Nombre en Firebase:</strong> <span style="color: ${isOriginalName ? 'green' : 'orange'}; font-weight: bold;">${doc.fileName}</span>
+                                    ${isOriginalName ? '<span style="color: green;">✅ Nombre conservado</span>' : '<span style="color: orange;">⚠️ Nombre modificado</span>'}<br>
+                                    <strong>Ruta completa:</strong> ${doc.firebaseRef}<br>
+                                    <strong>Tamaño:</strong> ${formatFileSize(doc.size)}<br>
+                                    <strong>Tipo:</strong> ${doc.mimetype}<br>
+                                    <strong>Fecha de subida:</strong> ${new Date(doc.uploadDate).toLocaleString()}<br>
+                                    <a href="${doc.downloadURL}" target="_blank" class="download-link">
+                                        🔗 Ver/Descargar archivo
+                                    </a>
+                                </div>
+                            `;
+                        });
+                    }
                     
                     successMessage += `
                         <hr>
-                        <p><strong>✅ Firebase Storage Status:</strong> Archivos guardados en compras/ con nombres originales</p>
+                        <p><strong>✅ Firebase Storage:</strong> Archivos guardados en talento-humano/ con nombres originales</p>
                         <p><strong>🔥 Storage Bucket:</strong> intranet-copvilla.firebasestorage.app</p>
-                        <p><strong>📂 Carpeta:</strong> compras/</p>
+                        <p><strong>💾 Base de datos:</strong> Registro guardado exitosamente</p>
                     `;
                     
                     showResult(successMessage, 'success');
                 } else {
-                    showResult(`❌ Error: ${data.message || 'Error desconocido'}`, 'error');
+                    let errorMsg = `❌ Error: ${data.message || 'Error desconocido'}`;
+                    if (response.status === 404) {
+                        errorMsg += '<br><br><strong>🚧 Este módulo está en desarrollo.</strong> El endpoint puede no estar completamente implementado.';
+                    }
+                    showResult(errorMsg, 'error');
                 }
                 
             } catch (error) {
@@ -347,12 +359,13 @@
                 let errorMessage = `❌ Error de conexión: ${error.message}<br><br>`;
                 errorMessage += `<strong>Posibles causas:</strong><br>`;
                 errorMessage += `• El servidor no está ejecutándose en ${SERVER_URL}<br>`;
+                errorMessage += `• El módulo de Talento Humano está en desarrollo<br>`;
                 errorMessage += `• Problemas de CORS<br>`;
                 errorMessage += `• Error de red<br><br>`;
                 errorMessage += `<strong>Soluciones:</strong><br>`;
                 errorMessage += `• Verificar que el servidor esté corriendo<br>`;
-                errorMessage += `• Revisar la consola del navegador para más detalles<br>`;
-                errorMessage += `• Verificar la configuración de Firebase`;
+                errorMessage += `• Confirmar que el módulo esté implementado<br>`;
+                errorMessage += `• Revisar la consola del navegador para más detalles`;
                 
                 showResult(errorMessage, 'error');
             } finally {
@@ -377,10 +390,11 @@
         }
         
         // Log inicial
-        console.log('🔥 Test de Firebase Storage para Compras con nombres originales inicializado');
+        console.log('👥 Test de Firebase Storage para Talento Humano inicializado');
         console.log('📡 Servidor configurado en:', SERVER_URL);
-        console.log('🎯 Endpoint de prueba:', `${SERVER_URL}/api/compras`);
-        console.log('📂 Los archivos se guardarán con sus nombres originales en: compras/');
+        console.log('🎯 Endpoint de prueba:', `${SERVER_URL}/api/talento-humano`);
+        console.log('📂 Los archivos se guardarán en: talento-humano/');
+        console.log('🚧 NOTA: Este módulo puede estar en desarrollo');
     </script>
 </body>
 </html>
