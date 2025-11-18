@@ -1,5 +1,5 @@
-import sistemas from '../models/sistemas.js';
 import Sistema from '../models/sistemas.js';
+import Folder from '../models/folder.js';
 import firebaseStorageService from '../services/firebaseStorage.js';
 
 const httpSistema = {
@@ -8,16 +8,33 @@ const httpSistema = {
         console.log('🚀 === LLEGÓ AL CONTROLADOR POST SISTEMA ===');
         
         try {
-            const { documento } = req.body;
+            const { documento, descripcion = '', folderPath = '/' } = req.body;
 
             console.log('📋 Datos recibidos:', {
                 documento,
+                descripcion,
+                folderPath,
                 filesCount: req.files ? req.files.length : 0
             });
+
+            // Verificar que la carpeta exista
+            const folder = await Folder.findOne({ 
+                department: 'sistemas', 
+                path: folderPath 
+            });
+            
+            if (!folder) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Carpeta destino no encontrada'
+                });
+            }
 
             // Crear el objeto base del sistema
             const sistemaData = {
                 documento,
+                descripcion,
+                folderPath,
                 documentos: []
             };
 
@@ -29,7 +46,7 @@ const httpSistema = {
                     // Subir archivos a Firebase Storage con nombres originales
                     const uploadedFiles = await firebaseStorageService.uploadMultipleFilesWithOriginalNames(
                         req.files, 
-                        'sistemas' // Carpeta específica para documentos de sistemas
+                        'sistemas'
                     );
 
                     // Agregar información de los archivos subidos al documento
@@ -63,9 +80,15 @@ const httpSistema = {
             const newDocument = new Sistema(sistemaData);
             const savedDocument = await newDocument.save();
             
+            // Actualizar carpeta - agregar documento
+            folder.documents.push(savedDocument._id);
+            await folder.save();
+            
             console.log('✅ Sistema guardado exitosamente:', savedDocument._id);
+            console.log('✅ Carpeta actualizada con el nuevo documento');
             
             res.status(201).json({ 
+                success: true,
                 message: "Sistema creado exitosamente", 
                 data: savedDocument,
                 filesUploaded: sistemaData.documentos.length,
@@ -102,13 +125,46 @@ const httpSistema = {
 
     getSistemas: async (req, res) => {
         try {
-           const sistemas = await Sistema.find(); 
-           res.json(sistemas);   
-    } catch (error) {
-              console.error("Error fetching sistemas:", error);
-              res.status(500).json({ message: "Internal server error", error: error.message });
-    }
-},
+            const { folderId, search } = req.query;
+            
+            let query = {};
+            
+            // Filtrar por carpeta si se especifica
+            if (folderId) {
+                query.folderPath = folderId;
+            }
+            
+            // Búsqueda por texto si se especifica
+            if (search) {
+                query.$or = [
+                    { documento: { $regex: search, $options: 'i' } },
+                    { descripcion: { $regex: search, $options: 'i' } },
+                    { 'documentos.originalName': { $regex: search, $options: 'i' } }
+                ];
+            }
+            
+            const sistemas = await Sistema.find(query).sort({ createdAt: -1 });
+            
+            // Agregar propiedades calculadas
+            const sistemasFormatted = sistemas.map(sis => ({
+                ...sis.toObject(),
+                tieneArchivos: sis.documentos && sis.documentos.length > 0,
+                cantidadArchivos: sis.documentos ? sis.documentos.length : 0
+            }));
+            
+            res.status(200).json({
+                success: true,
+                data: sistemasFormatted
+            });
+        } catch (error) {
+            console.error("Error fetching sistemas:", error);
+            res.status(500).json({ 
+                success: false,
+                message: "Internal server error", 
+                error: error.message 
+            });
+        }
+    },
 
     getSistemaById: async (req, res) => {
         try {
@@ -132,14 +188,17 @@ const httpSistema = {
             const sistema = await Sistema.findById(id);
 
             if (!sistema) {
-                return res.status(404).json({ message: "Sistema no encontrado" });
+                return res.status(404).json({ 
+                    success: false,
+                    message: "Sistema no encontrado" 
+                });
             }
 
             // Si el sistema tiene documentos en Firebase, eliminarlos
             if (sistema.documentos && sistema.documentos.length > 0) {
                 try {
                     const filePaths = sistema.documentos
-                        .filter(doc => doc.filePath) // Solo documentos con filePath
+                        .filter(doc => doc.filePath)
                         .map(doc => doc.filePath);
                     
                     if (filePaths.length > 0) {
@@ -148,16 +207,116 @@ const httpSistema = {
                     }
                 } catch (deleteError) {
                     console.error('❌ Error eliminando archivos de Firebase:', deleteError);
-                    // Continuar con la eliminación del documento aunque falle la eliminación de archivos
                 }
             }
 
-            await Sistema.findByIdAndDelete(id);
-            res.status(200).json({ message: "Sistema eliminado exitosamente" }); 
+            // Remover documento de su carpeta
+            const folder = await Folder.findOne({ 
+                department: 'sistemas', 
+                path: sistema.folderPath || '/'
+            });
             
+            if (folder) {
+                folder.documents = folder.documents.filter(
+                    docId => docId.toString() !== id
+                );
+                await folder.save();
+                console.log('✅ Documento removido de la carpeta');
+            }
+
+            await Sistema.findByIdAndDelete(id);
+            res.status(200).json({ 
+                success: true,
+                message: "Sistema eliminado exitosamente" 
+            });
+
         } catch (error) {
             console.error("Error eliminando sistema:", error);
             res.status(500).json({ message: "Error interno del servidor", error: error.message });
+        }
+    },
+
+    // Mover documento a otra carpeta
+    moveDocument: async (req, res) => {
+        try {
+            const { documentId } = req.params;
+            const { targetFolderPath } = req.body;
+            const department = 'sistemas';
+            
+            if (!targetFolderPath) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Carpeta destino requerida'
+                });
+            }
+            
+            // Buscar documento
+            const document = await Sistema.findById(documentId);
+            
+            if (!document) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Documento no encontrado'
+                });
+            }
+            
+            const sourceFolderPath = document.folderPath || '/';
+            
+            // Si es la misma carpeta, no hacer nada
+            if (sourceFolderPath === targetFolderPath) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'El documento ya está en esa carpeta',
+                    data: document
+                });
+            }
+            
+            // Buscar carpetas
+            const [sourceFolder, targetFolder] = await Promise.all([
+                Folder.findOne({ department, path: sourceFolderPath }),
+                Folder.findOne({ department, path: targetFolderPath })
+            ]);
+            
+            if (!targetFolder) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Carpeta destino no encontrada'
+                });
+            }
+            
+            // Remover de carpeta origen
+            if (sourceFolder) {
+                sourceFolder.documents = sourceFolder.documents.filter(
+                    docId => docId.toString() !== documentId
+                );
+                await sourceFolder.save();
+            }
+            
+            // Agregar a carpeta destino
+            if (!targetFolder.documents.includes(documentId)) {
+                targetFolder.documents.push(documentId);
+                await targetFolder.save();
+            }
+            
+            // Actualizar documento
+            document.folderPath = targetFolderPath;
+            await document.save();
+            
+            console.log(`✅ Documento movido de ${sourceFolderPath} a ${targetFolderPath}`);
+            
+            return res.status(200).json({
+                success: true,
+                message: 'Documento movido exitosamente',
+                data: document
+            });
+            
+        } catch (error) {
+            console.error('❌ Error al mover documento:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Error al mover documento',
+                error: error.message
+            });
         }
     },
 

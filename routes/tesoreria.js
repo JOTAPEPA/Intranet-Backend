@@ -1,5 +1,6 @@
 import { Router } from "express";
 import httpTesoreria from "../controllers/tesoreria.js";
+import httpFolder from "../controllers/folder.js";
 import upload from "../Middlewares/uploadMiddleware.js";
 
 const router = Router();
@@ -13,10 +14,18 @@ const handleMulterError = (err, req, res, next) => {
     res.status(500).json({ message: 'Error procesando archivos', error: err.message, code: err.code });
 };
 
+// ========== RUTAS DE CARPETAS ==========
+router.get('/folders', (req, res) => httpFolder.getFolderStructure(req, res, 'tesoreria'));
+router.post('/folders', (req, res) => httpFolder.createFolder(req, res, 'tesoreria'));
+router.delete('/folders/:folderPath', (req, res) => httpFolder.deleteFolder(req, res, 'tesoreria'));
+router.get('/folders/:folderPath/items', (req, res) => httpFolder.getFolderItems(req, res, 'tesoreria', 'Tesoreria'));
+
+// ========== RUTAS DE DOCUMENTOS ==========
 router.post('/', [upload.array('documentos', 10), handleMulterError], httpTesoreria.postTesoreria);
 router.get('/', httpTesoreria.getTesoreria);
 router.get('/:id', httpTesoreria.getTesoreriaById);
-router.get('/:id/file/:fileIndex/download', httpTesoreria.getFileDownloadURL);
 router.delete('/:id', httpTesoreria.deleteTesoreria);
+router.put('/:documentId/move', httpTesoreria.moveDocument);
+router.get('/:id/file/:fileIndex/download', httpTesoreria.getFileDownloadURL);
 
 export default router;

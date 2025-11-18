@@ -43,10 +43,10 @@ const handleMulterError = (err, req, res, next) => {
 
 
 // ========== RUTAS DE CARPETAS ==========
-router.get('/folders', httpFolder.getFolderStructure);
-router.post('/folders', httpFolder.createFolder);
-router.delete('/folders/:folderPath', httpFolder.deleteFolder);
-router.get('/folders/:folderPath/items', httpFolder.getFolderItems);
+router.get('/folders', (req, res) => httpFolder.getFolderStructure(req, res, 'compras'));
+router.post('/folders', (req, res) => httpFolder.createFolder(req, res, 'compras'));
+router.delete('/folders/:folderPath', (req, res) => httpFolder.deleteFolder(req, res, 'compras'));
+router.get('/folders/:folderPath/items', (req, res) => httpFolder.getFolderItems(req, res, 'compras', 'Compra'));
 
 // ========== RUTAS DE DOCUMENTOS ==========
 router.post('/', [

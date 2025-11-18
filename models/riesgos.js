@@ -3,6 +3,15 @@ import mongoose from "mongoose";
 const riesgosSchema = new mongoose.Schema({
     
     documento: {type: String, required: true},
+    descripcion: {
+        type: String,
+        default: ''
+    },
+    folderPath: {
+        type: String,
+        default: '/',
+        index: true
+    },
     documentos: [{
         originalName: {
             type: String,
@@ -41,5 +50,9 @@ const riesgosSchema = new mongoose.Schema({
 }, {
     timestamps: true
 })
+
+// Índices para búsqueda y filtrado
+riesgosSchema.index({ documento: 'text', 'documentos.originalName': 'text' });
+riesgosSchema.index({ folderPath: 1, createdAt: -1 });
 
 export default mongoose.model("Riesgos", riesgosSchema);

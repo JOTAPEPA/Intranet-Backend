@@ -1,5 +1,6 @@
 import { Router } from "express";
 import httpControlInterno from "../controllers/controlInterno.js";
+import httpFolder from "../controllers/folder.js";
 import upload from "../Middlewares/uploadMiddleware.js";
 
 const router = Router();
@@ -13,17 +14,23 @@ const handleMulterError = (err, req, res, next) => {
     res.status(500).json({ message: 'Error procesando archivos', error: err.message, code: err.code });
 };
 
-router.post('/', [upload.array('documentos', 10), handleMulterError], httpControlInterno.postControlInterno);
 // Endpoint de prueba simple
 router.get('/test', (req, res) => {
     res.json({ message: 'Control Interno endpoint funciona!' });
 });
 
+// ========== RUTAS DE CARPETAS ==========
+router.get('/folders', (req, res) => httpFolder.getFolderStructure(req, res, 'controlInterno'));
+router.post('/folders', (req, res) => httpFolder.createFolder(req, res, 'controlInterno'));
+router.delete('/folders/:folderPath', (req, res) => httpFolder.deleteFolder(req, res, 'controlInterno'));
+router.get('/folders/:folderPath/items', (req, res) => httpFolder.getFolderItems(req, res, 'controlInterno', 'ControlInterno'));
+
+// ========== RUTAS DE DOCUMENTOS ==========
+router.post('/', [upload.array('documentos', 10), handleMulterError], httpControlInterno.postControlInterno);
 router.get('/', httpControlInterno.getControlInterno);
 router.get('/:id', httpControlInterno.getControlInternoById);
 router.delete('/:id', httpControlInterno.deleteControlInterno);
-
-// Nueva ruta para obtener URL de descarga de un archivo específico
+router.put('/:documentId/move', httpControlInterno.moveDocument);
 router.get('/:id/file/:fileIndex/download', httpControlInterno.getFileDownloadURL);
 
 export default router;

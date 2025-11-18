@@ -1,5 +1,6 @@
 import { Router } from "express";
 import httpSistema from "../controllers/sistemas.js";
+import httpFolder from "../controllers/folder.js";
 import upload from "../Middlewares/uploadMiddleware.js";
 
 const router = Router();
@@ -41,21 +42,18 @@ const handleMulterError = (err, req, res, next) => {
 };
 
 
-router.post('/', [
-    upload.array('documentos', 10),
-    handleMulterError 
-], httpSistema.postSistema);
+// ========== RUTAS DE CARPETAS ==========
+router.get('/folders', (req, res) => httpFolder.getFolderStructure(req, res, 'sistemas'));
+router.post('/folders', (req, res) => httpFolder.createFolder(req, res, 'sistemas'));
+router.delete('/folders/:folderPath', (req, res) => httpFolder.deleteFolder(req, res, 'sistemas'));
+router.get('/folders/:folderPath/items', (req, res) => httpFolder.getFolderItems(req, res, 'sistemas', 'Sistema'));
 
-
+// ========== RUTAS DE DOCUMENTOS ==========
+router.post('/', [upload.array('documentos', 10), handleMulterError], httpSistema.postSistema);
 router.get('/', httpSistema.getSistemas);
-
-
 router.get('/:id', httpSistema.getSistemaById);
-
-
 router.delete('/:id', httpSistema.deleteSistema);
-
-// Nueva ruta para obtener URL de descarga de un archivo específico
+router.put('/:documentId/move', httpSistema.moveDocument);
 router.get('/:id/file/:fileIndex/download', httpSistema.getFileDownloadURL);
 
 export default router;

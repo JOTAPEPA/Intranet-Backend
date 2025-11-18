@@ -1,4 +1,5 @@
 import Contabilidad from '../models/contabilidad.js';
+import Folder from '../models/folder.js';
 import firebaseStorageService from '../services/firebaseStorage.js';
 
 const httpContabilidad = {
@@ -7,16 +8,33 @@ const httpContabilidad = {
         console.log('🚀 === LLEGÓ AL CONTROLADOR POST CONTABILIDAD ===');
         
         try {
-            const { documento } = req.body;
+            const { documento, descripcion = '', folderPath = '/' } = req.body;
 
             console.log('📋 Datos recibidos:', {
                 documento,
+                descripcion,
+                folderPath,
                 filesCount: req.files ? req.files.length : 0
             });
+
+            // Verificar que la carpeta exista
+            const folder = await Folder.findOne({ 
+                department: 'contabilidad', 
+                path: folderPath 
+            });
+            
+            if (!folder) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Carpeta destino no encontrada'
+                });
+            }
 
             // Crear el objeto base de la contabilidad
             const contabilidadData = {
                 documento,
+                descripcion,
+                folderPath,
                 documentos: []
             };
 
@@ -62,11 +80,17 @@ const httpContabilidad = {
             const newDocument = new Contabilidad(contabilidadData);
             const savedDocument = await newDocument.save();
             
+            // Actualizar carpeta - agregar documento
+            folder.documents.push(savedDocument._id);
+            await folder.save();
+            
             console.log('✅ Contabilidad guardada exitosamente:', savedDocument._id);
+            console.log('✅ Carpeta actualizada con el nuevo documento');
             
             res.status(201).json({ 
+                success: true,
                 message: "Contabilidad creada exitosamente", 
-                contabilidad: savedDocument,
+                data: savedDocument,
                 filesUploaded: contabilidadData.documentos.length,
                 documents: contabilidadData.documentos.map(doc => ({
                     originalName: doc.originalName,
@@ -101,11 +125,44 @@ const httpContabilidad = {
 
     getContabilidad: async (req, res) => {
         try {
-            const contabilidad = await Contabilidad.find();
-            res.json(contabilidad);
+            const { folderId, search } = req.query;
+            
+            let query = {};
+            
+            // Filtrar por carpeta si se especifica
+            if (folderId) {
+                query.folderPath = folderId;
+            }
+            
+            // Búsqueda por texto si se especifica
+            if (search) {
+                query.$or = [
+                    { documento: { $regex: search, $options: 'i' } },
+                    { descripcion: { $regex: search, $options: 'i' } },
+                    { 'documentos.originalName': { $regex: search, $options: 'i' } }
+                ];
+            }
+            
+            const contabilidad = await Contabilidad.find(query).sort({ createdAt: -1 });
+            
+            // Agregar propiedades calculadas
+            const contabilidadFormatted = contabilidad.map(cont => ({
+                ...cont.toObject(),
+                tieneArchivos: cont.documentos && cont.documentos.length > 0,
+                cantidadArchivos: cont.documentos ? cont.documentos.length : 0
+            }));
+            
+            res.status(200).json({
+                success: true,
+                data: contabilidadFormatted
+            });
         } catch (error) {
-            console.error("Error fetching compras:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
+            console.error("Error fetching contabilidad:", error);
+            res.status(500).json({ 
+                success: false,
+                message: "Internal server error", 
+                error: error.message 
+            });
         }
     },
 
@@ -131,14 +188,17 @@ const httpContabilidad = {
             const contabilidad = await Contabilidad.findById(id);
 
             if (!contabilidad) {
-                return res.status(404).json({ message: "Contabilidad no encontrada" });
+                return res.status(404).json({ 
+                    success: false,
+                    message: "Contabilidad no encontrada" 
+                });
             }
 
             // Si la contabilidad tiene documentos en Firebase, eliminarlos
             if (contabilidad.documentos && contabilidad.documentos.length > 0) {
                 try {
                     const filePaths = contabilidad.documentos
-                        .filter(doc => doc.filePath) // Solo documentos con filePath
+                        .filter(doc => doc.filePath)
                         .map(doc => doc.filePath);
                     
                     if (filePaths.length > 0) {
@@ -147,16 +207,116 @@ const httpContabilidad = {
                     }
                 } catch (deleteError) {
                     console.error('❌ Error eliminando archivos de Firebase:', deleteError);
-                    // Continuar con la eliminación del documento aunque falle la eliminación de archivos
                 }
             }
 
+            // Remover documento de su carpeta
+            const folder = await Folder.findOne({ 
+                department: 'contabilidad', 
+                path: contabilidad.folderPath || '/'
+            });
+            
+            if (folder) {
+                folder.documents = folder.documents.filter(
+                    docId => docId.toString() !== id
+                );
+                await folder.save();
+                console.log('✅ Documento removido de la carpeta');
+            }
+
             await Contabilidad.findByIdAndDelete(id);
-            res.status(200).json({ message: "Contabilidad eliminada exitosamente" });
+            res.status(200).json({ 
+                success: true,
+                message: "Contabilidad eliminada exitosamente" 
+            });
 
         } catch (error) {
             console.error("Error eliminando contabilidad:", error);
             res.status(500).json({ message: "Error interno del servidor", error: error.message });
+        }
+    },
+
+    // Mover documento a otra carpeta
+    moveDocument: async (req, res) => {
+        try {
+            const { documentId } = req.params;
+            const { targetFolderPath } = req.body;
+            const department = 'contabilidad';
+            
+            if (!targetFolderPath) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Carpeta destino requerida'
+                });
+            }
+            
+            // Buscar documento
+            const document = await Contabilidad.findById(documentId);
+            
+            if (!document) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Documento no encontrado'
+                });
+            }
+            
+            const sourceFolderPath = document.folderPath || '/';
+            
+            // Si es la misma carpeta, no hacer nada
+            if (sourceFolderPath === targetFolderPath) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'El documento ya está en esa carpeta',
+                    data: document
+                });
+            }
+            
+            // Buscar carpetas
+            const [sourceFolder, targetFolder] = await Promise.all([
+                Folder.findOne({ department, path: sourceFolderPath }),
+                Folder.findOne({ department, path: targetFolderPath })
+            ]);
+            
+            if (!targetFolder) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Carpeta destino no encontrada'
+                });
+            }
+            
+            // Remover de carpeta origen
+            if (sourceFolder) {
+                sourceFolder.documents = sourceFolder.documents.filter(
+                    docId => docId.toString() !== documentId
+                );
+                await sourceFolder.save();
+            }
+            
+            // Agregar a carpeta destino
+            if (!targetFolder.documents.includes(documentId)) {
+                targetFolder.documents.push(documentId);
+                await targetFolder.save();
+            }
+            
+            // Actualizar documento
+            document.folderPath = targetFolderPath;
+            await document.save();
+            
+            console.log(`✅ Documento movido de ${sourceFolderPath} a ${targetFolderPath}`);
+            
+            return res.status(200).json({
+                success: true,
+                message: 'Documento movido exitosamente',
+                data: document
+            });
+            
+        } catch (error) {
+            console.error('❌ Error al mover documento:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Error al mover documento',
+                error: error.message
+            });
         }
     },
 

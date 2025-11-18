@@ -170,8 +170,8 @@
         
         <form id="uploadForm">
             <div class="form-group">
-                <label for="solicitante">👤 Solicitante:</label>
-                <input type="text" id="solicitante" name="solicitante" value="Usuario Test" required>
+                <label for="documento">📄 Título del Documento:</label>
+                <input type="text" id="documento" name="documento" value="Documento Test" required>
             </div>
             
             <div class="form-group">
@@ -180,13 +180,9 @@
             </div>
             
             <div class="form-group">
-                <label for="proveedor">🏢 Proveedor:</label>
-                <input type="text" id="proveedor" name="proveedor" value="Proveedor Test">
-            </div>
-            
-            <div class="form-group">
-                <label for="valor">💰 Valor:</label>
-                <input type="text" id="valor" name="valor" value="100000">
+                <label for="folderPath">📂 Carpeta Destino:</label>
+                <input type="text" id="folderPath" name="folderPath" value="/" placeholder="/">
+                <small style="color: #666;">Usa / para la raíz o /NombreCarpeta/ para subcarpetas</small>
             </div>
             
             <div class="form-group">
@@ -271,10 +267,9 @@
             
             // Preparar FormData
             const formData = new FormData();
-            formData.append('solicitante', document.getElementById('solicitante').value);
+            formData.append('documento', document.getElementById('documento').value);
             formData.append('descripcion', document.getElementById('descripcion').value);
-            formData.append('proveedor', document.getElementById('proveedor').value);
-            formData.append('valor', document.getElementById('valor').value);
+            formData.append('folderPath', document.getElementById('folderPath').value);
             
             // Agregar archivos
             for (let file of files) {
@@ -303,15 +298,16 @@
                 if (response.ok) {
                     let successMessage = `
                         <h3>✅ ¡Archivos de compras subidos con nombres originales!</h3>
-                        <p><strong>ID de la compra:</strong> ${data.compra._id}</p>
-                        <p><strong>Solicitante:</strong> ${data.compra.solicitante}</p>
-                        <p><strong>Descripción:</strong> ${data.compra.descripcion}</p>
-                        <p><strong>Archivos subidos:</strong> ${data.compra.documentos.length}</p>
+                        <p><strong>ID de la compra:</strong> ${data.data._id}</p>
+                        <p><strong>Documento:</strong> ${data.data.documento}</p>
+                        <p><strong>Descripción:</strong> ${data.data.descripcion}</p>
+                        <p><strong>Carpeta:</strong> ${data.data.folderPath}</p>
+                        <p><strong>Archivos subidos:</strong> ${data.data.documentos.length}</p>
                         <hr>
                         <h4>📁 Archivos en Firebase con nombres originales:</h4>
                     `;
                     
-                    data.compra.documentos.forEach((doc, index) => {
+                    data.data.documentos.forEach((doc, index) => {
                         const isOriginalName = doc.fileName === doc.originalName;
                         successMessage += `
                             <div class="file-info">

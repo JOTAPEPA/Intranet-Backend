@@ -3,6 +3,15 @@ import mongoose from "mongoose";
 const contabilidadSchema = new mongoose.Schema({
     
     documento: {type: String, required: true},
+    descripcion: {
+        type: String,
+        default: ''
+    },
+    folderPath: {
+        type: String,
+        default: '/',
+        index: true
+    },
     documentos: [{
         originalName: {
             type: String,
@@ -41,5 +50,9 @@ const contabilidadSchema = new mongoose.Schema({
 }, {
     timestamps: true
 })
+
+// Índices para búsqueda y filtrado
+contabilidadSchema.index({ documento: 'text', 'documentos.originalName': 'text' });
+contabilidadSchema.index({ folderPath: 1, createdAt: -1 });
 
 export default mongoose.model("Contabilidad", contabilidadSchema);

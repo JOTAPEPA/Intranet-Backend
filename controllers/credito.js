@@ -1,4 +1,5 @@
 import Credito from '../models/credito.js';
+import Folder from '../models/folder.js';
 import firebaseStorageService from '../services/firebaseStorage.js';
 
 const httpCredito = {
@@ -7,16 +8,33 @@ const httpCredito = {
         console.log('🚀 === LLEGÓ AL CONTROLADOR POST CREDITO ===');
         
         try {
-            const { documento } = req.body;
+            const { documento, descripcion = '', folderPath = '/' } = req.body;
 
             console.log('📋 Datos recibidos:', {
                 documento,
+                descripcion,
+                folderPath,
                 filesCount: req.files ? req.files.length : 0
             });
+
+            // Verificar que la carpeta exista
+            const folder = await Folder.findOne({ 
+                department: 'credito', 
+                path: folderPath 
+            });
+            
+            if (!folder) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Carpeta destino no encontrada'
+                });
+            }
 
             // Crear el objeto base del crédito
             const creditoData = {
                 documento,
+                descripcion,
+                folderPath,
                 documentos: []
             };
 
@@ -62,11 +80,17 @@ const httpCredito = {
             const newDocument = new Credito(creditoData);
             const savedDocument = await newDocument.save();
             
+            // Actualizar carpeta - agregar documento
+            folder.documents.push(savedDocument._id);
+            await folder.save();
+            
             console.log('✅ Crédito guardado exitosamente:', savedDocument._id);
+            console.log('✅ Carpeta actualizada con el nuevo documento');
             
             res.status(201).json({ 
+                success: true,
                 message: "Crédito creado exitosamente", 
-                credito: savedDocument,
+                data: savedDocument,
                 filesUploaded: creditoData.documentos.length,
                 documents: creditoData.documentos.map(doc => ({
                     originalName: doc.originalName,
@@ -101,11 +125,29 @@ const httpCredito = {
 
     getCredito: async (req, res) => {
         try {
-            const credito = await Credito.find();
-            res.json(credito);
+            const { folderId, search } = req.query;
+            
+            let query = {};
+            if (folderId) query.folderPath = folderId;
+            if (search) {
+                query.$or = [
+                    { documento: { $regex: search, $options: 'i' } },
+                    { descripcion: { $regex: search, $options: 'i' } },
+                    { 'documentos.originalName': { $regex: search, $options: 'i' } }
+                ];
+            }
+            
+            const credito = await Credito.find(query).sort({ createdAt: -1 });
+            const creditoFormatted = credito.map(cred => ({
+                ...cred.toObject(),
+                tieneArchivos: cred.documentos && cred.documentos.length > 0,
+                cantidadArchivos: cred.documentos ? cred.documentos.length : 0
+            }));
+            
+            res.status(200).json({ success: true, data: creditoFormatted });
         } catch (error) {
             console.error("Error fetching credito:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
+            res.status(500).json({ success: false, message: "Internal server error", error: error.message });
         }
     },
 
@@ -127,14 +169,14 @@ const httpCredito = {
             const credito = await Credito.findById(id);
 
             if (!credito) {
-                return res.status(404).json({ message: "Crédito no encontrado" });
+                return res.status(404).json({ success: false, message: "Crédito no encontrado" });
             }
 
             // Si el crédito tiene documentos en Firebase, eliminarlos
             if (credito.documentos && credito.documentos.length > 0) {
                 try {
                     const filePaths = credito.documentos
-                        .filter(doc => doc.filePath) // Solo documentos con filePath
+                        .filter(doc => doc.filePath)
                         .map(doc => doc.filePath);
                     
                     if (filePaths.length > 0) {
@@ -143,16 +185,82 @@ const httpCredito = {
                     }
                 } catch (deleteError) {
                     console.error('❌ Error eliminando archivos de Firebase:', deleteError);
-                    // Continuar con la eliminación del documento aunque falle la eliminación de archivos
                 }
             }
 
+            // Remover documento de su carpeta
+            const folder = await Folder.findOne({ 
+                department: 'credito', 
+                path: credito.folderPath || '/'
+            });
+            
+            if (folder) {
+                folder.documents = folder.documents.filter(
+                    docId => docId.toString() !== id
+                );
+                await folder.save();
+                console.log('✅ Documento removido de la carpeta');
+            }
+
             await Credito.findByIdAndDelete(id);
-            res.status(200).json({ message: "Crédito eliminado exitosamente" });
+            res.status(200).json({ success: true, message: "Crédito eliminado exitosamente" });
 
         } catch (error) {
             console.error("Error eliminando crédito:", error);
             res.status(500).json({ message: "Error interno del servidor", error: error.message });
+        }
+    },
+
+    // Mover documento a otra carpeta
+    moveDocument: async (req, res) => {
+        try {
+            const { documentId } = req.params;
+            const { targetFolderPath } = req.body;
+            const department = 'credito';
+            
+            if (!targetFolderPath) {
+                return res.status(400).json({ success: false, message: 'Carpeta destino requerida' });
+            }
+            
+            const document = await Credito.findById(documentId);
+            if (!document) {
+                return res.status(404).json({ success: false, message: 'Documento no encontrado' });
+            }
+            
+            const sourceFolderPath = document.folderPath || '/';
+            if (sourceFolderPath === targetFolderPath) {
+                return res.status(200).json({ success: true, message: 'El documento ya está en esa carpeta', data: document });
+            }
+            
+            const [sourceFolder, targetFolder] = await Promise.all([
+                Folder.findOne({ department, path: sourceFolderPath }),
+                Folder.findOne({ department, path: targetFolderPath })
+            ]);
+            
+            if (!targetFolder) {
+                return res.status(404).json({ success: false, message: 'Carpeta destino no encontrada' });
+            }
+            
+            if (sourceFolder) {
+                sourceFolder.documents = sourceFolder.documents.filter(
+                    docId => docId.toString() !== documentId
+                );
+                await sourceFolder.save();
+            }
+            
+            if (!targetFolder.documents.includes(documentId)) {
+                targetFolder.documents.push(documentId);
+                await targetFolder.save();
+            }
+            
+            document.folderPath = targetFolderPath;
+            await document.save();
+            
+            console.log(`✅ Documento movido de ${sourceFolderPath} a ${targetFolderPath}`);
+            return res.status(200).json({ success: true, message: 'Documento movido exitosamente', data: document });
+        } catch (error) {
+            console.error('❌ Error al mover documento:', error);
+            return res.status(500).json({ success: false, message: 'Error al mover documento', error: error.message });
         }
     },
 

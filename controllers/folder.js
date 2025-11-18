@@ -1,5 +1,6 @@
 import Folder from '../models/folder.js';
 import Compra from '../models/compras.js';
+import mongoose from 'mongoose';
 
 const httpFolder = {
 
@@ -37,10 +38,8 @@ const httpFolder = {
     },
 
     // Obtener toda la estructura de carpetas
-    getFolderStructure: async (req, res) => {
+    getFolderStructure: async (req, res, department = 'compras') => {
         try {
-            const department = 'compras';
-            
             const folders = await Folder.find({ department })
                 .sort({ path: 1 })
                 .lean();
@@ -86,10 +85,9 @@ const httpFolder = {
     },
 
     // Crear nueva carpeta
-    createFolder: async (req, res) => {
+    createFolder: async (req, res, department = 'compras') => {
         try {
             const { name, parentPath = '/' } = req.body;
-            const department = 'compras';
             
             // Validaciones
             if (!name || name.trim() === '') {
@@ -191,11 +189,11 @@ const httpFolder = {
         }
     },
 
-    // Eliminar carpeta (solo si está vacía)
-    deleteFolder: async (req, res) => {
+    // Eliminar carpeta (solo si está vacía o recursivamente con force)
+    deleteFolder: async (req, res, department = 'compras') => {
         try {
             const folderPath = decodeURIComponent(req.params.folderPath);
-            const department = 'compras';
+            const force = req.query.force === 'true'; // Parámetro para eliminación recursiva
             
             // No eliminar raíz
             if (folderPath === '/') {
@@ -218,18 +216,63 @@ const httpFolder = {
                 });
             }
             
-            // Verificar que esté vacía
-            const hasChildren = folder.children && (
-                (folder.children instanceof Map && folder.children.size > 0) ||
-                (typeof folder.children === 'object' && Object.keys(folder.children).length > 0)
-            );
+            // Log detallado para debug
+            console.log('📂 Intentando eliminar carpeta:', folderPath);
+            console.log('   - Tipo de children:', typeof folder.children);
+            console.log('   - Children:', folder.children);
+            console.log('   - Documentos:', folder.documents);
+            
+            // Verificar que esté vacía - CORREGIDO: verificar correctamente si tiene elementos
+            let hasChildren = false;
+            if (folder.children) {
+                if (folder.children instanceof Map) {
+                    hasChildren = folder.children.size > 0;
+                } else if (typeof folder.children === 'object' && folder.children !== null) {
+                    hasChildren = Object.keys(folder.children).length > 0;
+                }
+            }
             const hasDocuments = folder.documents && folder.documents.length > 0;
             
-            if (hasChildren || hasDocuments) {
+            console.log('   - Tiene hijos:', hasChildren);
+            console.log('   - Tiene documentos:', hasDocuments);
+            
+            // Si tiene contenido y no es force, rechazar
+            if ((hasChildren || hasDocuments) && !force) {
+                // Contar subcarpetas reales
+                let realSubfolders = 0;
+                if (hasChildren) {
+                    const childPaths = [];
+                    if (folder.children instanceof Map) {
+                        folder.children.forEach(value => childPaths.push(value));
+                    } else if (typeof folder.children === 'object') {
+                        Object.values(folder.children).forEach(value => childPaths.push(value));
+                    }
+                    realSubfolders = await Folder.countDocuments({
+                        department,
+                        path: { $in: childPaths }
+                    });
+                }
+                
+                console.log('   - Subcarpetas reales:', realSubfolders);
+                console.log('   - Documentos reales:', hasDocuments ? folder.documents.length : 0);
+                
                 return res.status(409).json({
                     success: false,
-                    message: 'Solo se pueden eliminar carpetas vacías'
+                    message: 'Solo se pueden eliminar carpetas vacías',
+                    details: {
+                        subcarpetas: realSubfolders,
+                        documentos: hasDocuments ? folder.documents.length : 0,
+                        tip: 'Use ?force=true para eliminar recursivamente (eliminará todo el contenido)'
+                    }
                 });
+            }
+            
+            // Si es force, eliminar recursivamente
+            if (force) {
+                await httpFolder.deleteFolderRecursive(folder, department);
+            } else {
+                // Eliminación simple
+                await Folder.deleteOne({ _id: folder._id });
             }
             
             // Eliminar referencia del padre
@@ -249,14 +292,11 @@ const httpFolder = {
                 }
             }
             
-            // Eliminar carpeta
-            await Folder.deleteOne({ _id: folder._id });
-            
             console.log(`🗑️ Carpeta eliminada: ${folderPath}`);
             
             return res.status(200).json({
                 success: true,
-                message: 'Carpeta eliminada exitosamente'
+                message: force ? 'Carpeta y todo su contenido eliminados exitosamente' : 'Carpeta eliminada exitosamente'
             });
             
         } catch (error) {
@@ -269,11 +309,44 @@ const httpFolder = {
         }
     },
 
+    // Función auxiliar para eliminar carpeta recursivamente
+    deleteFolderRecursive: async (folder, department) => {
+        try {
+            // Obtener todas las subcarpetas
+            const childPaths = [];
+            if (folder.children) {
+                if (folder.children instanceof Map) {
+                    folder.children.forEach(value => childPaths.push(value));
+                } else if (typeof folder.children === 'object') {
+                    Object.values(folder.children).forEach(value => childPaths.push(value));
+                }
+            }
+            
+            // Eliminar recursivamente cada subcarpeta
+            for (const childPath of childPaths) {
+                const childFolder = await Folder.findOne({ 
+                    department, 
+                    path: childPath 
+                });
+                if (childFolder) {
+                    await httpFolder.deleteFolderRecursive(childFolder, department);
+                }
+            }
+            
+            // Eliminar la carpeta actual
+            await Folder.deleteOne({ _id: folder._id });
+            console.log(`   🗑️ Eliminada: ${folder.path}`);
+            
+        } catch (error) {
+            console.error('❌ Error en eliminación recursiva:', error);
+            throw error;
+        }
+    },
+
     // Obtener items (carpetas y documentos) de una carpeta específica
-    getFolderItems: async (req, res) => {
+    getFolderItems: async (req, res, department = 'compras', modelName = 'Compra') => {
         try {
             const folderPath = decodeURIComponent(req.params.folderPath);
-            const department = 'compras';
             
             // Verificar que la carpeta exista
             const folder = await Folder.findOne({ 
@@ -315,8 +388,9 @@ const httpFolder = {
                 documentCount: f.documents ? f.documents.length : 0
             }));
             
-            // Obtener documentos de esta carpeta
-            const documents = await Compra.find({
+            // Obtener documentos de esta carpeta - usar el modelo dinámicamente
+            const Model = mongoose.model(modelName);
+            const documents = await Model.find({
                 _id: { $in: folder.documents }
             }).lean();
             

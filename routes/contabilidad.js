@@ -1,5 +1,6 @@
 import { Router } from "express";
 import httpContabilidad from "../controllers/contabilidad.js";
+import httpFolder from "../controllers/folder.js";
 import upload from "../Middlewares/uploadMiddleware.js";
 
 const router = Router();
@@ -39,22 +40,27 @@ const handleMulterError = (err, req, res, next) => {
     });
 };
 
-// Ruta para crear una nueva contabilidad con archivos adjuntos
+
+// ========== RUTAS DE CARPETAS ==========
+router.get('/folders', (req, res) => httpFolder.getFolderStructure(req, res, 'contabilidad'));
+router.post('/folders', (req, res) => httpFolder.createFolder(req, res, 'contabilidad'));
+router.delete('/folders/:folderPath', (req, res) => httpFolder.deleteFolder(req, res, 'contabilidad'));
+router.get('/folders/:folderPath/items', (req, res) => httpFolder.getFolderItems(req, res, 'contabilidad', 'Contabilidad'));
+
+// ========== RUTAS DE DOCUMENTOS ==========
 router.post('/', [
-    upload.array('documentos', 10), // Máximo 10 archivos
-    handleMulterError // Manejo de errores de Multer
+    upload.array('documentos', 10),
+    handleMulterError 
 ], httpContabilidad.postContabilidad);
 
-// Ruta para obtener todas las contabilidades
 router.get('/', httpContabilidad.getContabilidad);
-
-// Ruta para obtener una contabilidad por ID
 router.get('/:id', httpContabilidad.getContabilidadById);
-
-// Ruta para eliminar una contabilidad
 router.delete('/:id', httpContabilidad.deleteContabilidad);
 
-// Nueva ruta para obtener URL de descarga de un archivo específico
+// Mover documento a otra carpeta
+router.put('/:documentId/move', httpContabilidad.moveDocument);
+
+// Obtener URL de descarga de un archivo específico
 router.get('/:id/file/:fileIndex/download', httpContabilidad.getFileDownloadURL);
 
 export default router;

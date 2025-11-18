@@ -1,5 +1,6 @@
 import Gerencia from '../models/gerencia.js';
-import { uploadMultipleFilesWithOriginalNames, deleteMultipleFiles } from '../services/firebaseStorage.js';
+import Folder from '../models/folder.js';
+import firebaseStorageService from '../services/firebaseStorage.js';
 
 const httpGerencia = {
 
@@ -7,27 +8,48 @@ const httpGerencia = {
         console.log('🚀 === LLEGÓ AL CONTROLADOR POST GERENCIA ===');
         
         try {
-            const { documento } = req.body;
+            const { documento, descripcion = '', folderPath = '/' } = req.body;
 
             console.log('📋 Datos recibidos:', {
                 documento,
+                descripcion,
+                folderPath,
                 filesCount: req.files ? req.files.length : 0
             });
 
+            // Verificar que la carpeta exista
+            const folder = await Folder.findOne({ 
+                department: 'gerencia', 
+                path: folderPath 
+            });
+            
+            if (!folder) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Carpeta destino no encontrada'
+                });
+            }
+
+            // Crear el objeto base de gerencia
             const gerenciaData = {
                 documento,
+                descripcion,
+                folderPath,
                 documentos: []
             };
 
+            // Si hay archivos subidos, subirlos a Firebase Storage
             if (req.files && req.files.length > 0) {
                 console.log(`📤 Procesando ${req.files.length} archivo(s)...`);
                 
                 try {
-                    const uploadedFiles = await uploadMultipleFilesWithOriginalNames(
+                    // Subir archivos a Firebase Storage con nombres originales
+                    const uploadedFiles = await firebaseStorageService.uploadMultipleFilesWithOriginalNames(
                         req.files, 
                         'gerencia'
                     );
 
+                    // Agregar información de los archivos subidos al documento
                     gerenciaData.documentos = uploadedFiles.map(file => ({
                         originalName: file.originalName,
                         fileName: file.fileName,
@@ -54,14 +76,21 @@ const httpGerencia = {
 
             console.log('💾 Guardando en base de datos...');
             
+            // Crear y guardar el documento en la base de datos
             const newDocument = new Gerencia(gerenciaData);
             const savedDocument = await newDocument.save();
             
+            // Actualizar carpeta - agregar documento
+            folder.documents.push(savedDocument._id);
+            await folder.save();
+            
             console.log('✅ Gerencia guardada exitosamente:', savedDocument._id);
+            console.log('✅ Carpeta actualizada con el nuevo documento');
             
             res.status(201).json({ 
+                success: true,
                 message: "Gerencia creada exitosamente", 
-                gerencia: savedDocument,
+                data: savedDocument,
                 filesUploaded: gerenciaData.documentos.length,
                 documents: gerenciaData.documentos.map(doc => ({
                     originalName: doc.originalName,
@@ -73,9 +102,10 @@ const httpGerencia = {
         } catch (error) {
             console.error("❌ Error en POST gerencia:", error);
             
+            // Si hay un error y ya se subieron archivos, intentar limpiarlos
             if (req.uploadedFiles && req.uploadedFiles.length > 0) {
                 try {
-                    await deleteMultipleFiles(
+                    await firebaseStorageService.deleteMultipleFiles(
                         req.uploadedFiles.map(file => file.filePath)
                     );
                     console.log('🧹 Archivos limpiados después del error');
@@ -95,11 +125,44 @@ const httpGerencia = {
 
     getGerencia: async (req, res) => {
         try {
-            const gerencias = await Gerencia.find();
-            res.json(gerencias);
+            const { folderId, search } = req.query;
+            
+            let query = {};
+            
+            // Filtrar por carpeta si se especifica
+            if (folderId) {
+                query.folderPath = folderId;
+            }
+            
+            // Búsqueda por texto si se especifica
+            if (search) {
+                query.$or = [
+                    { documento: { $regex: search, $options: 'i' } },
+                    { descripcion: { $regex: search, $options: 'i' } },
+                    { 'documentos.originalName': { $regex: search, $options: 'i' } }
+                ];
+            }
+            
+            const gerencias = await Gerencia.find(query).sort({ createdAt: -1 });
+            
+            // Agregar propiedades calculadas
+            const gerenciasFormatted = gerencias.map(ger => ({
+                ...ger.toObject(),
+                tieneArchivos: ger.documentos && ger.documentos.length > 0,
+                cantidadArchivos: ger.documentos ? ger.documentos.length : 0
+            }));
+            
+            res.status(200).json({
+                success: true,
+                data: gerenciasFormatted
+            });
         } catch (error) {
             console.error("Error fetching gerencias:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
+            res.status(500).json({ 
+                success: false,
+                message: "Internal server error", 
+                error: error.message 
+            });
         }
     },
 
@@ -115,46 +178,195 @@ const httpGerencia = {
         }
     },
 
+    deleteGerencia: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const gerencia = await Gerencia.findById(id);
+
+            if (!gerencia) {
+                return res.status(404).json({ 
+                    success: false,
+                    message: "Gerencia no encontrada" 
+                });
+            }
+
+            // Si gerencia tiene documentos en Firebase, eliminarlos
+            if (gerencia.documentos && gerencia.documentos.length > 0) {
+                try {
+                    const filePaths = gerencia.documentos
+                        .filter(doc => doc.filePath)
+                        .map(doc => doc.filePath);
+                    
+                    if (filePaths.length > 0) {
+                        await firebaseStorageService.deleteMultipleFiles(filePaths);
+                        console.log(`🗑️ ${filePaths.length} archivo(s) eliminado(s) de Firebase Storage`);
+                    }
+                } catch (deleteError) {
+                    console.error('❌ Error eliminando archivos de Firebase:', deleteError);
+                }
+            }
+
+            // Remover documento de su carpeta
+            const folder = await Folder.findOne({ 
+                department: 'gerencia', 
+                path: gerencia.folderPath || '/'
+            });
+            
+            if (folder) {
+                folder.documents = folder.documents.filter(
+                    docId => docId.toString() !== id
+                );
+                await folder.save();
+                console.log('✅ Documento removido de la carpeta');
+            }
+
+            await Gerencia.findByIdAndDelete(id);
+            res.status(200).json({ 
+                success: true,
+                message: "Gerencia eliminada exitosamente" 
+            });
+
+        } catch (error) {
+            console.error("Error eliminando gerencia:", error);
+            res.status(500).json({ message: "Error interno del servidor", error: error.message });
+        }
+    },
+
+    // Mover documento a otra carpeta
+    moveDocument: async (req, res) => {
+        try {
+            const { documentId } = req.params;
+            const { targetFolderPath } = req.body;
+            const department = 'gerencia';
+            
+            if (!targetFolderPath) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Carpeta destino requerida'
+                });
+            }
+            
+            // Buscar documento
+            const document = await Gerencia.findById(documentId);
+            
+            if (!document) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Documento no encontrado'
+                });
+            }
+            
+            const sourceFolderPath = document.folderPath || '/';
+            
+            // Si es la misma carpeta, no hacer nada
+            if (sourceFolderPath === targetFolderPath) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'El documento ya está en esa carpeta',
+                    data: document
+                });
+            }
+            
+            // Buscar carpetas
+            const [sourceFolder, targetFolder] = await Promise.all([
+                Folder.findOne({ department, path: sourceFolderPath }),
+                Folder.findOne({ department, path: targetFolderPath })
+            ]);
+            
+            if (!targetFolder) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Carpeta destino no encontrada'
+                });
+            }
+            
+            // Remover de carpeta origen
+            if (sourceFolder) {
+                sourceFolder.documents = sourceFolder.documents.filter(
+                    docId => docId.toString() !== documentId
+                );
+                await sourceFolder.save();
+            }
+            
+            // Agregar a carpeta destino
+            if (!targetFolder.documents.includes(documentId)) {
+                targetFolder.documents.push(documentId);
+                await targetFolder.save();
+            }
+            
+            // Actualizar documento
+            document.folderPath = targetFolderPath;
+            await document.save();
+            
+            console.log(`✅ Documento movido de ${sourceFolderPath} a ${targetFolderPath}`);
+            
+            return res.status(200).json({
+                success: true,
+                message: 'Documento movido exitosamente',
+                data: document
+            });
+            
+        } catch (error) {
+            console.error('❌ Error al mover documento:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Error al mover documento',
+                error: error.message
+            });
+        }
+    },
+
     getFileDownloadURL: async (req, res) => {
         try {
             const { id, fileIndex } = req.params;
             
             const gerencia = await Gerencia.findById(id);
             if (!gerencia) {
-                return res.status(404).json({ message: "Documento de gerencia no encontrado" });
+                return res.status(404).json({ message: "Gerencia no encontrada" });
+            }
+
+            if (!gerencia.documentos || gerencia.documentos.length === 0) {
+                return res.status(404).json({ message: "No hay documentos asociados a esta gerencia" });
             }
 
             const fileIdx = parseInt(fileIndex);
             if (fileIdx < 0 || fileIdx >= gerencia.documentos.length) {
-                return res.status(404).json({ message: "Archivo no encontrado" });
+                return res.status(404).json({ message: "Índice de archivo inválido" });
             }
 
             const documento = gerencia.documentos[fileIdx];
             
-            if (!documento.downloadURL) {
-                return res.status(404).json({ message: "URL de descarga no disponible" });
+            // Si ya tiene downloadURL, devolverlo directamente
+            if (documento.downloadURL) {
+                return res.status(200).json({
+                    downloadURL: documento.downloadURL,
+                    fileName: documento.originalName,
+                    size: documento.size,
+                    mimetype: documento.mimetype
+                });
             }
 
-            // Redirigir a la URL de descarga de Firebase
-            res.redirect(documento.downloadURL);
-            
+            // Si no tiene downloadURL pero tiene filePath, generarlo
+            if (documento.filePath) {
+                const downloadURL = await firebaseStorageService.getFileDownloadURL(documento.filePath);
+                
+                // Opcional: actualizar el documento con la nueva URL
+                gerencia.documentos[fileIdx].downloadURL = downloadURL;
+                await gerencia.save();
+
+                return res.status(200).json({
+                    downloadURL: downloadURL,
+                    fileName: documento.originalName,
+                    size: documento.size,
+                    mimetype: documento.mimetype
+                });
+            }
+
+            return res.status(404).json({ message: "Archivo no encontrado en el almacenamiento" });
+
         } catch (error) {
-            console.error("❌ Error obteniendo URL de descarga:", error);
+            console.error("Error obteniendo URL de descarga:", error);
             res.status(500).json({ message: "Error interno del servidor", error: error.message });
-        }
-    },
-
-    deleteGerencia: async (req, res) => {
-        try {
-            const { id } = req.params;
-            const gerencia = await Gerencia.findById(id);
-            if (!gerencia) return res.status(404).json({ message: "Gerencia not found" });
-
-            await Gerencia.findByIdAndDelete(id);
-            res.status(200).json({ message: "Gerencia deleted successfully" });
-        } catch (error) {
-            console.error("Error deleting gerencia:", error);
-            res.status(500).json({ message: "Internal server error", error: error.message });
         }
     }
 }

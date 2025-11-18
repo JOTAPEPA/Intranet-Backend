@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Completo - Sistema de Carpetas Contabilidad</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .layout {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            height: calc(100vh - 120px);
+        }
+        
+        .sidebar {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow-y: auto;
+        }
+        
+        .main-content {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow-y: auto;
+        }
+        
+        h2 {
+            color: #f5576c;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 3px solid #f5576c;
+            padding-bottom: 10px;
+        }
+        
+        .folder-tree {
+            margin-top: 15px;
+        }
+        
+        .folder-item, .document-item {
+            padding: 10px;
+            margin: 5px 0;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .folder-item:hover, .document-item:hover {
+            background: #f0f0f0;
+            transform: translateX(5px);
+        }
+        
+        .folder-item.selected {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .folder-item .icon {
+            margin-right: 8px;
+        }
+        
+        .folder-item .badge {
+            background: rgba(255,255,255,0.3);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+        }
+        
+        .folder-item.selected .badge {
+            background: rgba(255,255,255,0.5);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s;
+            margin: 5px 5px 5px 0;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+        }
+        
+        button.small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        button.delete {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        input[type="text"], input[type="file"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            margin: 5px 0 10px 0;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        
+        .form-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        
+        .form-section h3 {
+            color: #333;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+        
+        .breadcrumb {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .breadcrumb span {
+            color: #f5576c;
+            font-weight: bold;
+        }
+        
+        .grid-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .card {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            transition: all 0.2s;
+        }
+        
+        .card:hover {
+            border-color: #f5576c;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .card.folder {
+            background: linear-gradient(135deg, #ffeef8 0%, #ffe0e8 100%);
+        }
+        
+        .card.document {
+            background: linear-gradient(135deg, #fff5e6 0%, #ffe0b3 100%);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .card-icon {
+            font-size: 2em;
+        }
+        
+        .card-title {
+            font-weight: bold;
+            color: #333;
+            margin: 5px 0;
+            word-break: break-word;
+        }
+        
+        .card-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+        }
+        
+        .file-list {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+        
+        .file-item-small {
+            padding: 5px;
+            margin: 3px 0;
+            background: #f0f0f0;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        
+        .download-btn {
+            background: #28a745;
+            padding: 5px 10px;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #f5576c;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Sistema de Carpetas - Contabilidad</h1>
+        
+        <div class="layout">
+            <!-- SIDEBAR - Árbol de carpetas -->
+            <div class="sidebar">
+                <h2>🗂️ Carpetas</h2>
+                
+                <button onclick="loadFolders()">🔄 Recargar</button>
+                
+                <div class="form-section">
+                    <h3>➕ Nueva Carpeta</h3>
+                    <input type="text" id="newFolderName" placeholder="Nombre de la carpeta">
+                    <button onclick="createFolder()" class="small">Crear</button>
+                </div>
+                
+                <div id="folderTree" class="folder-tree">
+                    <div style="text-align: center; color: #999; padding: 20px;">
+                        Cargando carpetas...
+                    </div>
+                </div>
+            </div>
+            
+            <!-- MAIN CONTENT - Contenido de carpeta seleccionada -->
+            <div class="main-content">
+                <div class="breadcrumb">
+                    📍 Ubicación: <span id="currentPath">/</span>
+                </div>
+                
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="folderCount">0</div>
+                        <div class="stat-label">Subcarpetas</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="documentCount">0</div>
+                        <div class="stat-label">Documentos</div>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h3>📤 Subir Documento</h3>
+                    <input type="text" id="docTitle" placeholder="Título del documento">
+                    <textarea id="docDescription" placeholder="Descripción (opcional)"></textarea>
+                    <input type="file" id="docFiles" multiple>
+                    <button onclick="uploadDocument()">Subir a esta carpeta</button>
+                </div>
+                
+                <h2>📋 Contenido</h2>
+                
+                <div id="content" class="grid-view">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📂</div>
+                        <p>Selecciona una carpeta del menú lateral</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api/contabilidad';
+        let currentFolderPath = '/';
+        let folderStructure = {};
+        
+        // Cargar estructura de carpetas
+        async function loadFolders() {
+            try {
+                const response = await fetch(`${API_URL}/folders`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    folderStructure = result.data;
+                    displayFolderTree();
+                    loadFolderContent(currentFolderPath);
+                } else {
+                    console.error('Error cargando carpetas:', result);
+                    alert('Error cargando carpetas: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error de conexión: ' + error.message);
+            }
+        }
+        
+        // Mostrar árbol de carpetas
+        function displayFolderTree() {
+            const treeDiv = document.getElementById('folderTree');
+            treeDiv.innerHTML = '';
+            
+            const sortedPaths = Object.keys(folderStructure).sort();
+            
+            sortedPaths.forEach(path => {
+                const folder = folderStructure[path];
+                const depth = (path.match(/\//g) || []).length - 1;
+                const indent = '&nbsp;&nbsp;&nbsp;&nbsp;'.repeat(depth);
+                
+                const div = document.createElement('div');
+                div.className = 'folder-item' + (path === currentFolderPath ? ' selected' : '');
+                
+                const docCount = folder.documents ? folder.documents.length : 0;
+                
+                div.innerHTML = `
+                    <span>
+                        <span class="icon">${depth === 0 ? '🏠' : '📁'}</span>
+                        ${indent}${folder.name}
+                    </span>
+                    ${docCount > 0 ? `<span class="badge">${docCount}</span>` : ''}
+                `;
+                
+                div.onclick = () => {
+                    currentFolderPath = path;
+                    displayFolderTree();
+                    loadFolderContent(path);
+                };
+                
+                treeDiv.appendChild(div);
+            });
+        }
+        
+        // Cargar contenido de una carpeta
+        async function loadFolderContent(path) {
+            try {
+                document.getElementById('currentPath').textContent = path;
+                
+                const response = await fetch(`${API_URL}/folders/${encodeURIComponent(path)}/items`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayContent(result.data);
+                } else {
+                    console.error('Error cargando contenido:', result);
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error de conexión: ' + error.message);
+            }
+        }
+        
+        // Mostrar contenido (carpetas y documentos)
+        function displayContent(data) {
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = '';
+            
+            document.getElementById('folderCount').textContent = data.folders.length;
+            document.getElementById('documentCount').textContent = data.documents.length;
+            
+            if (data.folders.length === 0 && data.documents.length === 0) {
+                contentDiv.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>Esta carpeta está vacía</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Mostrar subcarpetas
+            data.folders.forEach(folder => {
+                const card = document.createElement('div');
+                card.className = 'card folder';
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="card-icon">📁</div>
+                    </div>
+                    <div class="card-title">${folder.name}</div>
+                    <div class="card-info">
+                        ${folder.documentCount} documento(s)
+                    </div>
+                    <div class="action-buttons">
+                        <button class="small" onclick="selectFolder('${folder.path}')">Abrir</button>
+                        <button class="small delete" onclick="deleteFolder('${folder.path}')">Eliminar</button>
+                    </div>
+                `;
+                contentDiv.appendChild(card);
+            });
+            
+            // Mostrar documentos
+            data.documents.forEach(doc => {
+                const card = document.createElement('div');
+                card.className = 'card document';
+                
+                let filesHTML = '';
+                if (doc.documentos && doc.documentos.length > 0) {
+                    filesHTML = '<div class="file-list">';
+                    doc.documentos.forEach((file, index) => {
+                        filesHTML += `
+                            <div class="file-item-small">
+                                📄 ${file.originalName} (${formatFileSize(file.size)})
+                                <a href="${file.downloadURL}" target="_blank" class="download-btn">Descargar</a>
+                            </div>
+                        `;
+                    });
+                    filesHTML += '</div>';
+                }
+                
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="card-icon">📄</div>
+                    </div>
+                    <div class="card-title">${doc.documento}</div>
+                    <div class="card-info">
+                        ${doc.descripcion || 'Sin descripción'}<br>
+                        ${doc.cantidadArchivos} archivo(s)
+                    </div>
+                    ${filesHTML}
+                    <div class="action-buttons">
+                        <button class="small delete" onclick="deleteDocument('${doc._id}')">Eliminar</button>
+                    </div>
+                `;
+                contentDiv.appendChild(card);
+            });
+        }
+        
+        // Crear nueva carpeta
+        async function createFolder() {
+            const name = document.getElementById('newFolderName').value.trim();
+            
+            if (!name) {
+                alert('Por favor ingresa un nombre para la carpeta');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/folders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name, 
+                        parentPath: currentFolderPath 
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Carpeta creada exitosamente');
+                    document.getElementById('newFolderName').value = '';
+                    loadFolders();
+                } else {
+                    alert('❌ Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        // Subir documento
+        async function uploadDocument() {
+            const title = document.getElementById('docTitle').value.trim();
+            const description = document.getElementById('docDescription').value.trim();
+            const files = document.getElementById('docFiles').files;
+            
+            if (!title) {
+                alert('Por favor ingresa un título para el documento');
+                return;
+            }
+            
+            if (files.length === 0) {
+                alert('Por favor selecciona al menos un archivo');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('documento', title);
+            formData.append('descripcion', description);
+            formData.append('folderPath', currentFolderPath);
+            
+            for (let file of files) {
+                formData.append('documentos', file);
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Documento subido exitosamente con ${result.filesUploaded} archivo(s)`);
+                    document.getElementById('docTitle').value = '';
+                    document.getElementById('docDescription').value = '';
+                    document.getElementById('docFiles').value = '';
+                    loadFolders();
+                } else {
+                    alert('❌ Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        // Seleccionar carpeta
+        function selectFolder(path) {
+            currentFolderPath = path;
+            displayFolderTree();
+            loadFolderContent(path);
+        }
+        
+        // Eliminar carpeta
+        async function deleteFolder(path) {
+            if (!confirm(`¿Estás seguro de eliminar la carpeta ${path}?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/folders/${encodeURIComponent(path)}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Carpeta eliminada');
+                    if (currentFolderPath === path) {
+                        currentFolderPath = '/';
+                    }
+                    loadFolders();
+                } else {
+                    alert('❌ Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        // Eliminar documento
+        async function deleteDocument(id) {
+            if (!confirm('¿Estás seguro de eliminar este documento?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Documento eliminado');
+                    loadFolders();
+                } else {
+                    alert('❌ Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        // Formatear tamaño de archivo
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Cargar al iniciar
+        window.onload = () => {
+            loadFolders();
+        };
+    </script>
+</body>
+</html>
