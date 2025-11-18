@@ -1,5 +1,6 @@
 import { Router } from "express";
 import httpCompra from "../controllers/compras.js";
+import httpFolder from "../controllers/folder.js";
 import upload from "../Middlewares/uploadMiddleware.js";
 
 const router = Router();
@@ -41,21 +42,26 @@ const handleMulterError = (err, req, res, next) => {
 };
 
 
+// ========== RUTAS DE CARPETAS ==========
+router.get('/folders', httpFolder.getFolderStructure);
+router.post('/folders', httpFolder.createFolder);
+router.delete('/folders/:folderPath', httpFolder.deleteFolder);
+router.get('/folders/:folderPath/items', httpFolder.getFolderItems);
+
+// ========== RUTAS DE DOCUMENTOS ==========
 router.post('/', [
     upload.array('documentos', 10),
     handleMulterError 
 ], httpCompra.postCompra);
 
-
 router.get('/', httpCompra.getCompras);
-
-
 router.get('/:id', httpCompra.getCompraById);
-
-
 router.delete('/:id', httpCompra.deleteCompra);
 
-// Nueva ruta para obtener URL de descarga de un archivo específico
+// Mover documento a otra carpeta
+router.put('/:documentId/move', httpCompra.moveDocument);
+
+// Obtener URL de descarga de un archivo específico
 router.get('/:id/file/:fileIndex/download', httpCompra.getFileDownloadURL);
 
 export default router;

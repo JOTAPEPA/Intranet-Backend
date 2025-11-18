@@ -3,6 +3,15 @@
     const comprasSchema = new mongoose.Schema({
         
         documento: {type: String,},
+        descripcion: {
+            type: String,
+            default: ''
+        },
+        folderPath: {
+            type: String,
+            default: '/',
+            index: true
+        },
         documentos: [{
             // Información del archivo original
             originalName: {
@@ -49,5 +58,9 @@
     }, {
         timestamps: true
     })
+
+    // Índices para búsqueda y filtrado
+    comprasSchema.index({ documento: 'text', 'documentos.originalName': 'text' });
+    comprasSchema.index({ folderPath: 1, createdAt: -1 });
 
     export default mongoose.model("Compra", comprasSchema);

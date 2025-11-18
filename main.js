@@ -8,6 +8,9 @@ dotenv.config()
 // Importar configuración de Firebase (se inicializa automáticamente)
 import './config/firebase.js';
 
+// Importar controlador de carpetas para inicialización
+import httpFolder from './controllers/folder.js';
+
 import httpUser from './routes/user.js';
 import httpCompra from './routes/compras.js';
 import httpContabilidad from './routes/contabilidad.js';
@@ -75,6 +78,14 @@ const startServer = async () => {
         // Conectar a MongoDB primero
         await mongoose.connect(process.env.MONGO_URI);
         console.log('✅ Conectado a MongoDB');
+        
+        // Inicializar carpetas raíz para cada departamento
+        console.log('📁 Inicializando estructura de carpetas...');
+        const departments = ['compras', 'contabilidad', 'credito', 'tesoreria', 'riesgos', 'sistemas', 'talentoHumano', 'controlInterno', 'gerencia'];
+        for (const dept of departments) {
+            await httpFolder.initializeDepartmentFolders(dept);
+        }
+        console.log('✅ Estructura de carpetas inicializada');
         
         // Luego iniciar el servidor
         const server = app.listen(process.env.PORT, () => {
